@@ -1,0 +1,121 @@
+/* =================================================================== */
+/* == V2.CSS (CYBERPUNK THEME + THEME VARS) - ATI EXTENSÃO         == */
+/* =================================================================== */
+
+/* --- Contêiner de Ações --- */
+#actionsContainerV2 {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px;
+    margin: 0 16px 12px 16px;
+    z-index: 9999;
+}
+
+/* --- Estilo Base dos Botões (Estrutura, Fonte, Tamanho) --- */
+#actionsContainerV2 .action-btn {
+    /* Layout de Grade: Ocupa metade do espaço, com o gap de 10px em mente */
+    flex: 1 1 calc(50% - 10px);
+    min-width: auto;
+    
+    /* Estilo Visual */
+    background-color: rgba(10, 10, 15, 0.5);
+    font-family: 'Consolas', 'Lucida Console', monospace;
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    padding: 12px; /* Garante o tamanho correto */
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid #555; /* Borda padrão inicial */
+}
+
+/* --- Aplicação Principal do Tema para TODOS os botões --- */
+/* Usamos seletores específicos para garantir que o tema seja aplicado */
+#actionsContainerV2 .action-btn--contact,
+#actionsContainerV2 .action-btn--cpf,
+#actionsContainerV2 .action-btn--os,
+#actionsContainerV2 .action-btn--ai,
+#actionsContainerV2 .action-btn--sgp {
+    color: var(--theme-button-color, #007DDF);
+    border-color: var(--theme-button-color, #007DDF);
+    text-shadow: 0 0 5px var(--theme-button-color, #007DDF);
+    box-shadow: 0 0 8px var(--theme-glow-color, rgba(147, 51, 234, 0.3)), inset 0 0 8px var(--theme-inset-glow-color, rgba(147, 51, 234, 0.2));
+}
+
+/* --- Efeito de Hover (passar o mouse) --- */
+#actionsContainerV2 .action-btn:hover {
+    background-color: var(--theme-button-hover-bg, rgba(0, 255, 255, 0.05));
+    border-color: var(--theme-button-hover-border, #777);
+    transform: translateY(-2px);
+}
+
+/* --- Garante que o último botão ocupe a largura total, se for ímpar --- */
+#actionsContainerV2 .action-btn:last-child {
+    flex-basis: 100%;
+}
+
+/* --- Feedback Visual (Sucesso/Erro) --- */
+#actionsContainerV2 .action-btn--success {
+    background-color: #28a745 !important;
+    border-color: #1e7e34 !important;
+    color: white !important;
+    text-shadow: none !important;
+    box-shadow: 0 0 15px #28a745 !important;
+}
+
+#actionsContainerV2 .action-btn--error {
+    background-color: #dc3545 !important;
+    border-color: #b02a37 !important;
+    color: white !important;
+    text-shadow: none !important;
+    box-shadow: 0 0 15px #dc3545 !important;
+}
+
+#actionsContainerV2 .action-btn--success span,
+#actionsContainerV2 .action-btn--error span {
+    display: inline-block;
+    animation: pop-in 0.3s;
+}
+
+@keyframes pop-in {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* --- Respostas Rápidas --- */
+#atiQuickRepliesContainerV2.quick-replies-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 8px 12px 8px;
+    margin: 12px 8px 0 8px;
+}
+#atiQuickRepliesContainerV2 .qr-btn {
+    padding: 6px 14px;
+    border-radius: 16px;
+    border: 1px solid #555;
+    background-color: #3a3a3a;
+    color: #ccc;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+#atiQuickRepliesContainerV2 .qr-btn:hover {
+    background-color: #4a4a4a;
+    border-color: #777;
+}
+#atiQuickRepliesContainerV2 .qr-btn--back {
+    color: white;
+    border-color: #888;
+}
+#atiQuickRepliesContainerV2 .qr-btn--back:hover {
+    background-color: #555;
+}

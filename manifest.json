@@ -1,0 +1,111 @@
+{
+  "manifest_version": 3,
+  "name": "ATI - Auxiliar de Atendimentos",
+  "version": "1.0",
+  "description": "Copia dados, sugere e cria Ordens de Serviço a partir do chat.",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "clipboardWrite",
+    "clipboardRead",
+    "tabs",
+    "commands",
+    "notifications"
+  ],
+  "host_permissions": [
+    "https://*.firebaseio.com/*",
+    "https://*.firebaseapp.com/",
+    "https://*.googleapis.com/*",
+    "https://sgp.atiinternet.com.br/*",
+    "https://gist.githubusercontent.com/*" 
+  ],
+
+  "icons": {
+    "16": "icones/icone_16.png",
+    "48": "icones/icone_48.png",
+    "128": "icones/icone_128.png"
+  },
+
+  "action": {
+    "default_title": "Abrir Painel ATI",
+    "default_icon": {
+      "16": "icones/icone_16.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "copy-data": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Copia os dados do cliente ativo."
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.chatmix.com.br/app/atendimento"
+      ],
+      "js": [
+        "firebase-config.js",
+        "scripts/logic.js",
+        "scripts/utils.js",
+        "scripts/v1.js",
+        "content.js"
+      ],
+      "css": [
+        "css/common.css",
+        "css/v1.css"
+      ]
+    },    
+    {
+      "matches": [
+        "https://www.chatmix.com.br/v2/chat*"
+      ],
+      "js": [
+        "firebase-config.js",
+        "scripts/logic.js",
+        "scripts/utils.js",
+        "scripts/v2.js"
+      ],
+      "css": [
+        "css/common.css",
+        "css/v2.css"
+      ]
+    },
+    {
+      "matches": [
+        "https://vituali.github.io/ATI/"
+      ],
+      "js": [
+        "bridge-listener.js"
+      ],
+      "all_frames": true
+    },
+    {
+      "matches": [
+        "https://sgp.atiinternet.com.br/admin/atendimento/cliente/*/ocorrencia/add/"
+      ],
+      "js": [
+        "libs/jquery.min.js",
+        "scripts/sgp.js"
+      ]
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "bridge-injected.js",
+        "css/*.css"
+      ],
+      "matches": [
+        "https://*.chatmix.com.br/*",
+        "https://vituali.github.io/*"
+      ]
+    }
+  ]
+}
