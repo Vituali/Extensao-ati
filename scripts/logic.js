@@ -137,15 +137,11 @@ function findCPF(allTexts) {
     const cpfCnpjRegex = /\b(\d{11}|\d{14})\b/g;
     const validMatches = [];
     const blacklist = ['código de barras', 'boleto', 'fatura', 'pix', 'linha digitável'];
-    
-    console.log("Textos recebidos para análise de CPF:", allTexts); // Log 1: Ver o que a função recebe
-
     for (const text of allTexts) {
         // Converte para minúsculas ANTES de verificar a blacklist
         const lowerCaseText = text.toLowerCase();
         
         if (blacklist.some(keyword => lowerCaseText.includes(keyword))) {
-            console.log("Texto ignorado pela blacklist:", text); // Log 2: Ver o que está sendo pulado
             continue;
         }
 

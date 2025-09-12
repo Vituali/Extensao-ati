@@ -1,81 +1,66 @@
 /* =================================================================== */
-/* == V2.CSS (CYBERPUNK THEME + THEME VARS) - ATI EXTENSÃO         == */
+/* == V2.CSS (REVISADO PARA USAR TEMA DO SITE) - ATI EXTENSÃO       == */
 /* =================================================================== */
 
 /* --- Contêiner de Ações --- */
 #actionsContainerV2 {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Cria uma grade de 2 colunas */
     gap: 10px;
-    padding: 12px;
-    margin: 0 16px 12px 16px;
+    /* [MODIFICADO] Apenas padding vertical para respeitar o alinhamento da sidebar */
+    padding: 12px 0;
+    margin: 18px; 
+    margin-bottom: 0px;
     z-index: 9999;
+    width: 90%; /* Garante que o contêiner ocupe toda a largura disponível */
 }
 
-/* --- Estilo Base dos Botões (Estrutura, Fonte, Tamanho) --- */
+/* --- Estilo Base dos Botões (inspirado no site) --- */
 #actionsContainerV2 .action-btn {
-    /* Layout de Grade: Ocupa metade do espaço, com o gap de 10px em mente */
-    flex: 1 1 calc(50% - 10px);
-    min-width: auto;
-    
-    /* Estilo Visual */
-    background-color: rgba(10, 10, 15, 0.5);
-    font-family: 'Consolas', 'Lucida Console', monospace;
+    background-color: var(--theme-button-bg, #007DFF); /* Cor de segurança AZUL */
+    color: var(--theme-button-text, #FFFFFF);
+    border: 1px solid transparent;
+    font-family: var(--theme-font-primary, 'Orbitron', sans-serif);
     font-size: 14px;
     font-weight: bold;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    padding: 12px; /* Garante o tamanho correto */
+    letter-spacing: 0.5px;
+    padding: 12px 5px; /* Padding vertical maior que horizontal */
     cursor: pointer;
     transition: all 0.2s ease-in-out;
-    clip-path: polygon(0 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%);
+    border-radius: 5px; /* Bordas arredondadas como no site */
+    box-shadow: 0 0 10px 0px var(--theme-shadow-color, rgba(0,125,255,0.4)), 0 2px 4px rgba(0,0,0,0.2);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border: 1px solid #555; /* Borda padrão inicial */
-}
-
-/* --- Aplicação Principal do Tema para TODOS os botões --- */
-/* Usamos seletores específicos para garantir que o tema seja aplicado */
-#actionsContainerV2 .action-btn--contact,
-#actionsContainerV2 .action-btn--cpf,
-#actionsContainerV2 .action-btn--os,
-#actionsContainerV2 .action-btn--ai,
-#actionsContainerV2 .action-btn--sgp {
-    color: var(--theme-button-color, #007DDF);
-    border-color: var(--theme-button-color, #007DDF);
-    text-shadow: 0 0 5px var(--theme-button-color, #007DDF);
-    box-shadow: 0 0 8px var(--theme-glow-color, rgba(147, 51, 234, 0.3)), inset 0 0 8px var(--theme-inset-glow-color, rgba(147, 51, 234, 0.2));
+    word-break: break-word; /* Evita que o texto quebre o layout */
+    min-width: 0; /* Permite que o flexbox encolha o item se necessário */
 }
 
 /* --- Efeito de Hover (passar o mouse) --- */
 #actionsContainerV2 .action-btn:hover {
-    background-color: var(--theme-button-hover-bg, rgba(0, 255, 255, 0.05));
-    border-color: var(--theme-button-hover-border, #777);
+    background-color: var(--theme-button-hover-bg, #3399ff);
     transform: translateY(-2px);
+    box-shadow: 0 0 15px 2px var(--theme-shadow-color, rgba(0,125,255,0.5)), 0 4px 8px rgba(0,0,0,0.3);
 }
 
-/* --- Garante que o último botão ocupe a largura total, se for ímpar --- */
-#actionsContainerV2 .action-btn:last-child {
-    flex-basis: 100%;
+/* --- Garante que o último botão (se for ímpar) ocupe a largura total --- */
+#actionsContainerV2 .action-btn:last-child:nth-child(odd) {
+    grid-column: span 2;
 }
 
 /* --- Feedback Visual (Sucesso/Erro) --- */
 #actionsContainerV2 .action-btn--success {
-    background-color: #28a745 !important;
-    border-color: #1e7e34 !important;
+    background-color: var(--theme-success-color, #28a745) !important;
     color: white !important;
-    text-shadow: none !important;
-    box-shadow: 0 0 15px #28a745 !important;
+    box-shadow: 0 0 15px var(--theme-success-color, #28a745) !important;
 }
 
 #actionsContainerV2 .action-btn--error {
-    background-color: #dc3545 !important;
-    border-color: #b02a37 !important;
+    background-color: var(--theme-error-color, #dc3545) !important;
     color: white !important;
-    text-shadow: none !important;
-    box-shadow: 0 0 15px #dc3545 !important;
+    box-shadow: 0 0 15px var(--theme-error-color, #dc3545) !important;
 }
 
 #actionsContainerV2 .action-btn--success span,
@@ -100,22 +85,20 @@
 #atiQuickRepliesContainerV2 .qr-btn {
     padding: 6px 14px;
     border-radius: 16px;
-    border: 1px solid #555;
-    background-color: #3a3a3a;
-    color: #ccc;
+    border: 1px solid var(--theme-border-color, #555);
+    background-color: transparent;
+    color: var(--theme-text-primary, #ccc);
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
     transition: all 0.2s;
 }
 #atiQuickRepliesContainerV2 .qr-btn:hover {
-    background-color: #4a4a4a;
-    border-color: #777;
+    background-color: var(--theme-button-bg, #007DFF);
+    color: var(--theme-button-text, #FFF);
+    border-color: transparent;
 }
 #atiQuickRepliesContainerV2 .qr-btn--back {
-    color: white;
-    border-color: #888;
+    font-weight: bold;
 }
-#atiQuickRepliesContainerV2 .qr-btn--back:hover {
-    background-color: #555;
-}
+

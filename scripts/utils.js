@@ -59,7 +59,6 @@ function findSuggestedTemplate(allTexts, allTemplates) {
     if (osOnlyTemplates.length === 0) return null;
 
     const chatContent = allTexts.join(' ').toLowerCase();
-
     for (const template of osOnlyTemplates) {
         if (!template.keywords || template.keywords.length === 0) continue;
         for (const keyword of template.keywords) {
@@ -83,7 +82,6 @@ function findSuggestedTemplate(allTexts, allTemplates) {
  */
 function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataFn, extractChatFn }) {
     if (document.getElementById(modalId)) return;
-
     if (!chatHeader || !chatBody) {
         showNotification("Nenhum chat ativo encontrado para criar O.S.", true);
         return;
@@ -99,7 +97,6 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
         (acc[t.category || 'Outros'] = acc[t.category || 'Outros'] || []).push(t);
         return acc;
     }, {});
-
     let modelsHTML = '';
     for (const category in templatesByCategory) {
         modelsHTML += `<h4 class="modal-category-title">${category}</h4>`;
@@ -117,9 +114,9 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
     modalContent.className = 'modal-content';
 
     const suggestionHTML = suggestedTemplate ?
-        `<div class="modal-suggestion"><strong>Sugestão:</strong><button class="template-btn template-btn--suggestion" data-template-text="${suggestedTemplate.text.replace(/"/g, '&quot;')}">${suggestedTemplate.title}</button></div>` :
+        `<div class="modal-suggestion"><strong>Sugestão:</strong><button class="template-btn template-btn--suggestion" 
+ data-template-text="${suggestedTemplate.text.replace(/"/g, '&quot;')}">${suggestedTemplate.title}</button></div>` :
         '';
-
     modalContent.innerHTML = `
         <div class="modal-header">
             <h3>Criar Ordem de Serviço</h3>
@@ -129,13 +126,14 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
             ${suggestionHTML}
             <label for="osTextArea">Descrição da O.S.:</label>
             <textarea id="osTextArea" class="modal-textarea"></textarea>
-            <div class="modal-templates-container"><strong>TODOS OS MODELOS:</strong>${modelsHTML}</div>
+   
+             <div class="modal-templates-container"><strong>TODOS OS MODELOS:</strong>${modelsHTML}</div>
         </div>
         <div class="modal-footer">
-            <button class="main-btn main-btn--confirm">Copiar O.S. e Fechar</button>
+            <button class="main-btn main-btn--confirm">Copiar O.S.
+ e Fechar</button>
             <button class="main-btn main-btn--cancel">Cancelar</button>
         </div>`;
-
     modalBackdrop.appendChild(modalContent);
     
     // Anexa o modal ao contêiner seguro
@@ -153,7 +151,6 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
             osTextArea.focus();
         });
     });
-
     const closeModal = () => modalBackdrop.remove();
 
     modalContent.querySelector('.main-btn--confirm').onclick = () => {
@@ -173,11 +170,25 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
 }
 /**
  * Carrega as configurações de tema salvas do site-painel e as injeta no Chatmix.
+ * Se nenhum tema for encontrado, aplica um tema azul padrão.
  */
 function applySiteTheme() {
-    chrome.storage.local.get('atiSiteTheme', ({ atiSiteTheme }) => {
-        if (!atiSiteTheme) return; // Se não houver tema salvo, não faz nada
+    // Define um tema padrão azul caso nada seja encontrado no storage.
+    const defaultTheme = {
+        isDarkMode: true, // Chatmix V2 é escuro por padrão
+        neonBorders: true,
+        iconColor: '#007DFF',      // Azul (RGB 0, 125, 255)
+        borderColor: '#007DFF',    // Azul (RGB 0, 125, 255)
+        textColor: '#E5E5E5',
+    };
 
+    chrome.storage.local.get('atiSiteTheme', ({ atiSiteTheme }) => {
+        // Usa o tema do storage OU o tema padrão azul.
+        const themeToApply = atiSiteTheme || defaultTheme;
+        
+        // --- ADICIONADO LOG PARA VERIFICAÇÃO ---
+        console.log('[ATI EXTENSION] Puxando esquema de cores:', themeToApply);
+        
         const styleId = 'ati-site-theme-styles';
         let styleTag = document.getElementById(styleId);
         if (!styleTag) {
@@ -186,30 +197,46 @@ function applySiteTheme() {
             (document.head || document.documentElement).appendChild(styleTag);
         }
 
-        // --- LÓGICA SIMPLIFICADA ---
-        // Agora, apenas definimos as variáveis de cor que o v2.css irá usar.
-        styleTag.textContent = `
-            :root {
-                --theme-icon-color: ${atiSiteTheme.iconColor};
-                --theme-button-color: ${atiSiteTheme.borderColor};
-                --theme-button-hover-bg: ${hexToRgba(atiSiteTheme.borderColor, 0.1)};
-                --theme-button-hover-border: ${lightenColor(atiSiteTheme.borderColor, 20)};
-                --theme-glow-color: ${hexToRgba(atiSiteTheme.borderColor, 0.3)};
-                --theme-inset-glow-color: ${hexToRgba(atiSiteTheme.borderColor, 0.2)};
-            }
-        `;
-
-        // Funções auxiliares de cor (ainda necessárias)
-        function lightenColor(hex, percent) {
+        // Funções auxiliares de cor
+        const getLuminance = (hex) => {
+            if (!hex || hex.length < 4) return 0;
+            hex = hex.replace("#", "");
+            const r = parseInt(hex.substring(0, 2), 16) / 255, g = parseInt(hex.substring(2, 4), 16) / 255, b = parseInt(hex.substring(4, 6), 16) / 255;
+            const a = [r, g, b].map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+            return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+        };
+        const lightenColor = (hex, percent) => {
             hex = hex.replace("#", "");
             const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
             const increase = percent / 100;
-            return `#${Math.min(255, Math.round(r + (255 - r) * increase)).toString(16).padStart(2, '0')}${Math.min(255, Math.round(g + (255 - g) * increase)).toString(16).padStart(2, '0')}${Math.min(255, Math.round(b + (255 - b) * increase)).toString(16).padStart(2, '0')}`;
-        }
-        function hexToRgba(hex, alpha) {
+            return `#${Math.min(255,Math.round(r+(255-r)*increase)).toString(16).padStart(2,'0')}${Math.min(255,Math.round(g+(255-g)*increase)).toString(16).padStart(2,'0')}${Math.min(255,Math.round(b+(255-b)*increase)).toString(16).padStart(2,'0')}`;
+        };
+        const hexToRgba = (hex, alpha) => {
             hex = hex.replace("#", "");
             const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
+        };
+        
+        const contrastColorForButtons = getLuminance(themeToApply.borderColor) > 0.5 ? '#111111' : '#FFFFFF';
+        
+        styleTag.textContent = `
+            :root {
+                --theme-font-primary: 'Orbitron', sans-serif;
+                --theme-font-secondary: Arial, sans-serif;
+                --theme-card-bg: ${themeToApply.isDarkMode ? '#2d2d2d' : '#ffffff'};
+                --theme-text-primary: ${themeToApply.isDarkMode ? '#e0e0e0' : '#333333'};
+                --theme-text-secondary: ${themeToApply.isDarkMode ? '#a0a0a0' : '#666666'};
+                --theme-border-color: ${themeToApply.borderColor};
+                --theme-heading-color: ${themeToApply.textColor};
+                --theme-button-bg: ${themeToApply.borderColor};
+                --theme-button-text: ${contrastColorForButtons};
+                --theme-button-hover-bg: ${lightenColor(themeToApply.borderColor, 20)};
+                --theme-success-color: #22C55E;
+                --theme-error-color: #EF4444;
+                --theme-info-color: #3B82F6;
+                --theme-shadow-color: ${hexToRgba(themeToApply.borderColor, themeToApply.neonBorders ? 0.4 : 0)};
+            }
+        `;
     });
 }
+

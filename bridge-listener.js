@@ -21,12 +21,14 @@ window.addEventListener('message', (event) => {
             });
             break;
         }
-        // ---> NOVO BLOCO PARA O TEMA <---
         case 'ATI_THEME_UPDATE': {
             const themeSettings = event.data.themeSettings;
             console.log('[Extensão ATI] MENSAGEM RECEBIDA: Tema atualizado.');
             // Salva as configurações de tema para a extensão usar
-            chrome.storage.local.set({ atiSiteTheme: themeSettings });
+            chrome.storage.local.set({ atiSiteTheme: themeSettings }, () => {
+                // [MODIFICADO] Avisa o background que o tema mudou para que ele avise as outras abas
+                chrome.runtime.sendMessage({ action: "themeUpdated" });
+            });
             break;
         }
     }

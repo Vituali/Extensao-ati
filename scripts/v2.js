@@ -13,11 +13,11 @@ const SELECTORS = {
     mainChatContent: '.chat_content'
 };
 
-console.log("ATI Extensão: Script V2 (Híbrido v15) carregado!");
+console.log("ATI Extensão: Script V2 carregado!");
 
 var osTemplates = [];
 
-// --- Funções de Lógica da Interface (Originais) ---
+// --- Funções de Lógica da Interface ---
 
 function findActiveChatHeaderV2() {
     return document.querySelector(SELECTORS.chatHeader);
@@ -40,10 +40,13 @@ function provideButtonFeedback(button, isSuccess) {
 }
 
 function extractDataFromHeaderV2(headerElement) {
-    if (!headerElement) return { firstName: "", phoneNumber: "" };
+    if (!headerElement) return { firstName: "", fullName: "", phoneNumber: "" };
     const nameElement = headerElement.querySelector('h2.text-base');
     const phoneElement = headerElement.querySelector('span.text-sm');
-    const firstName = nameElement ? (nameElement.textContent || "").trim().split(' ')[0].toUpperCase() : "";
+    
+    const fullName = nameElement ? (nameElement.textContent || "").trim() : "";
+    const firstName = fullName ? fullName.split(' ')[0].toUpperCase() : "";
+    
     let phoneNumber = "";
     if (phoneElement) {
         const phoneDigits = (phoneElement.textContent || "").replace(/\D/g, '');
@@ -59,7 +62,7 @@ function extractDataFromHeaderV2(headerElement) {
             phoneNumber = phoneDigits;
         }
     }
-    return { firstName, phoneNumber };
+    return { firstName, fullName, phoneNumber };
 }
 
 function collectTextFromMessagesV2(chatBody) {
@@ -113,7 +116,6 @@ function insertReplyText(text) {
     }
 }
 
-// CORREÇÃO FINALIZADA AQUI
 function renderReplyUI(container, groupedReplies, activeCategory = null) {
     container.innerHTML = ''; 
     if (activeCategory && groupedReplies[activeCategory]) {
@@ -216,23 +218,34 @@ async function handleOpenInSgpClick() {
     showNotification("Buscando cliente no SGP...");
     const chatBody = findActiveChatBodyV2();
     const chatHeader = findActiveChatHeaderV2();
+
     if (!chatBody || !chatHeader) {
         showNotification("Nenhum chat ativo para buscar no SGP.", true);
         provideButtonFeedback(button, false);
         return;
     }
+
     const allMessageTexts = collectTextFromMessagesV2(chatBody);
     const cpfCnpj = findCPF(allMessageTexts);
-    if (!cpfCnpj) {
-        showNotification("Nenhum CPF/CNPJ válido encontrado no chat.", true);
-        provideButtonFeedback(button, false);
-        return;
-    }
-    const { firstName, phoneNumber } = extractDataFromHeaderV2(chatHeader);
-    let osText = `${phoneNumber || ''} ${firstName || ''} | `.trim();
+
+    const { fullName, phoneNumber } = extractDataFromHeaderV2(chatHeader);
+    let osText = `${phoneNumber || ''} ${fullName || ''} | `.trim();
     osText = processDynamicPlaceholders(osText).toUpperCase();
+    
+    console.log('[SGP Debug] Dados capturados da página:', { 
+        cpfCnpj: cpfCnpj, 
+        fullName: fullName, 
+        phoneNumber: phoneNumber 
+    });
+    
     try {
-        await chrome.storage.local.set({ cpfCnpj: cpfCnpj, osText: osText });
+        await chrome.storage.local.set({ 
+            cpfCnpj: cpfCnpj, 
+            fullName: fullName,
+            phoneNumber: phoneNumber,
+            osText: osText 
+        });
+        
         chrome.runtime.sendMessage({ action: "openInSgp" });
         provideButtonFeedback(button, true);
     } catch (error) {
@@ -256,23 +269,14 @@ async function handleCopyPromptClick() {
         return showNotification("Não há mensagens de cliente para analisar.", true);
     }
     const companyProceduresContext = `
-- Para problemas de conexão, primeiro entenda a situação e depois siga as etapas de diagnóstico.
-Somente como último caso, acione uma equipe técnica.
 - O horário do suporte é de Seg a Sab de 08:00 as 21:00 e Dom/Feriados de 09:00 as 21:00.
-- Os planos de internet são: 600 MEGA, 800 MEGA e 920 MEGA.
-- Etapas de Diagnóstico Obrigatórias (siga na ordem):
-1. Verificar se o cliente já reiniciou o modem/roteador.
-**Se não, peça para fazer.**
-2. Testar a conexão via cabo.
-**Pergunte ao cliente se é possível testar com um cabo de rede.**
-3. Realizar o teste de velocidade.
-**Peça ao cliente para acessar speedtest.net e informar os resultados de download e upload.**
-4. Confirmar o número de dispositivos conectados.
-**Pergunte quantos aparelhos estão usando a internet no momento.**
-- Somente se todos os passos acima não resolverem, ofereça o acionamento da equipe técnica com prazo de até 48h.
+- O horário do suporte de rua é de Seg a dom de 09:00 as 17:00.
+- O horário do financeiro é de Seg a Sab de 09:00 as 18:00.
+- O horário do Comercial e da loja é de Seg a Sex de 09:00 as 18:00 e aos Sab 09:00 as 13:00.
+- Ajude a entender o problema do cliente e a dar uma possivel solução para o cliente.
 `;
     const prompt = `
-Você é um atendente de suporte da empresa 'ATI Internet'. Seu nome é Victor.
+Você é um atendente de suporte da empresa 'ATI Internet'.
 Sua resposta deve ser profissional, amigável e resolver o problema do cliente.
 ---
 REGRAS IMPORTANTES:
@@ -300,9 +304,6 @@ Sugira a resposta ideal seguindo TODAS as regras:
 }
 
 
-// --- Funções de Injeção e Reatividade ---
-
-// Esta função agora apenas injeta os elementos se eles não existirem.
 function injectUIElements() {
     const sidebar = document.querySelector(SELECTORS.sidebar);
     if (sidebar && !document.getElementById('actionsContainerV2')) {
@@ -346,7 +347,6 @@ function injectUIElements() {
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "reloadTemplates") {
         console.log("ATI Extensão: Recarregando templates e re-injetando UI.");
-        // Força a remoção dos elementos antigos antes de recarregar
         document.getElementById('actionsContainerV2')?.remove();
         document.getElementById('atiQuickRepliesContainerV2')?.remove();
         loadTemplatesFromStorage().then(templates => {
@@ -354,32 +354,34 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             injectUIElements();
         });
         sendResponse({ status: "Templates recarregados." });
+    } 
+    // [NOVO] Listener para a mensagem de atualização de tema
+    else if (request.action === "applyTheme") {
+        console.log("ATI Extensão: Aviso para aplicar tema recebido.");
+        applySiteTheme();
+        sendResponse({ status: "Tema aplicado." });
     }
     return true;
 });
 
 chrome.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local' && changes.atiSiteTheme) {
-        console.log('ATI Extensão: Tema mudou, aplicando novo estilo.');
+        console.log('ATI Extensão: Tema mudou (via storage), aplicando novo estilo.');
         applySiteTheme();
     }
 });
 
-// LÓGICA DE INICIALIZAÇÃO E OBSERVAÇÃO (ESTRATÉGIA ANTIGA E ROBUSTA)
 const observer = new MutationObserver(injectUIElements);
 
 (async function main() {
     getOrCreateExtensionContainer();
     applySiteTheme();
     
-    // Carrega os templates primeiro
     await loadTemplatesFromStorage().then(templates => {
         osTemplates = templates;
     });
     
-    // Tenta injetar a UI uma vez
     injectUIElements();
     
-    // E então começa a observar o corpo todo por mudanças, garantindo que a UI seja reinjetada se desaparecer.
     observer.observe(document.body, { childList: true, subtree: true });
 })();
