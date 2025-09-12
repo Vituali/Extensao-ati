@@ -1,9 +1,9 @@
-// sgp.js - Versão com preenchimento padrão unificado (v11)
-
-// --- CONFIGURAÇÃO DOS ATENDENTES ---
 const ATTENDANTS = {
     'VICTORH': '99',
     'LUCASJ': '100',
+    'HELIO': '77',
+    'IGORMAGALHAES': '68',
+    'JEFFERSON': '62',
 };
 // ------------------------------------
 
@@ -85,22 +85,28 @@ async function fillSgpForm() {
         // --- LÓGICA ESPECÍFICA PARA O TIPO DE OCORRÊNCIA ---
         const isComprovante = upperCaseText.includes('ENVIO DE COMPROVANTE');
         const isPromessa = upperCaseText.includes('PROMESSA DE PAGAMENTO');
-        const isSemAcesso = upperCaseText.includes('CLIENTE SEM ACESSO')
+        const isSemAcesso = upperCaseText.includes('CLIENTE SEM ACESSO');
+        const islento = upperCaseText.includes('CLIENTE RELATA LENTIDÃO')
 
         if (isComprovante) {
             console.log('[Extensão ATI] Detectado fluxo de "Envio de Comprovante". Alterando tipo...');
-            await wait(500); // Pausa estratégica para o SGP carregar os tipos do setor
+            await wait(200);
             await setValueWithDelay('#id_tipo', '42', 100); // Financeiro - Comunicação de pagamento
         
         } else if (isPromessa) {
             console.log('[Extensão ATI] Detectado fluxo de "Promessa de Pagamento". Alterando tipo...');
-            await wait(500); // Pausa estratégica
+            await wait(200);
             await setValueWithDelay('#id_tipo', '41', 100); // Financeiro - Promessa de pagamento
         
         } else if (isSemAcesso) {
             console.log('[Extensão ATI] Detectado fluxo de "CLIENTE SEM ACESSO". Alterando tipo...');
-            await wait(500);
+            await wait(200);
             await setValueWithDelay('#id_tipo', 1);
+
+        } else if (isLento) {
+            console.log('[Extensão ATI] Detectado fluxo de "CLIENTE RELATA LENTIDÃO". Alterando tipo...');
+            await wait(200);
+            await setValueWithDelay('#id_tipo', 3);
             
         } else {
             console.log('[Extensão ATI] Fluxo padrão de O.S. (nenhum tipo específico será selecionado).');
