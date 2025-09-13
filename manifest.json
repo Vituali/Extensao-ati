@@ -92,7 +92,11 @@
       ],
       "js": [
         "libs/jquery.min.js",
-        "scripts/sgp.js"
+        "scripts/sgp.js",
+        "scripts/utils.js"
+      ],
+      "css": [
+        "css/common.css"
       ]
     }
   ],

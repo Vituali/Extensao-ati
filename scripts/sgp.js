@@ -46,7 +46,7 @@ async function fillSgpForm() {
     try {
         const clipboardText = await navigator.clipboard.readText();
         if (!clipboardText) {
-            return alert('[Extensão ATI] A área de transferência está vazia.');
+            return showNotification('[Extensão ATI] A área de transferência está vazia.', true);
         }
 
         const upperCaseText = clipboardText.toUpperCase();
@@ -67,13 +67,13 @@ async function fillSgpForm() {
         if (validContracts.length === 1) {
             await setValueWithDelay('#id_clientecontrato', validContracts.val(), 50);
         } else if (validContracts.length > 1) {
-            alert('[Extensão ATI] Múltiplos contratos ativos. Selecione o correto manualmente.');
+            showNotification('[Extensão ATI] Múltiplos contratos ativos. Selecione o correto manualmente.', true, 5000);
         }
         
         // 3. Setor, Método e Status (padrão para Suporte Técnico)
-        await setValueWithDelay('#id_setor', '2', 100);    // Suporte Tecnico / Financeiro (usa o mesmo ID)
-        await setValueWithDelay('#id_metodo', '3', 100);   // Suporte Online
-        await setValueWithDelay('#id_status', '1', 100);   // Encerrada
+        await setValueWithDelay('#id_setor', '2', 100);   // Suporte Tecnico
+        await setValueWithDelay('#id_metodo', '3', 100);  // Suporte Online
+        await setValueWithDelay('#id_status', '1', 100);  // Encerrada
         
         // 4. Data de Agendamento e Checkbox "Gerar O.S."
         $('#id_data_agendamento').val(getCurrentFormattedDateTime());
@@ -86,40 +86,46 @@ async function fillSgpForm() {
         const isComprovante = upperCaseText.includes('ENVIO DE COMPROVANTE');
         const isPromessa = upperCaseText.includes('PROMESSA DE PAGAMENTO');
         const isSemAcesso = upperCaseText.includes('CLIENTE SEM ACESSO');
-        const islento = upperCaseText.includes('CLIENTE RELATA LENTIDÃO')
+        const isLento = upperCaseText.includes('CLIENTE RELATA LENTIDÃO');
 
         if (isComprovante) {
             console.log('[Extensão ATI] Detectado fluxo de "Envio de Comprovante". Alterando tipo...');
-            await wait(200);
-            await setValueWithDelay('#id_tipo', '42', 100); // Financeiro - Comunicação de pagamento
+            showNotification('Tipo detectado: Envio de Comprovante');
+            await wait(100);
+            await setValueWithDelay('#id_tipo', '42', 100);
         
         } else if (isPromessa) {
             console.log('[Extensão ATI] Detectado fluxo de "Promessa de Pagamento". Alterando tipo...');
-            await wait(200);
-            await setValueWithDelay('#id_tipo', '41', 100); // Financeiro - Promessa de pagamento
+            showNotification('Tipo detectado: Promessa de Pagamento');
+            await wait(100);
+            await setValueWithDelay('#id_tipo', '41', 100);
         
         } else if (isSemAcesso) {
             console.log('[Extensão ATI] Detectado fluxo de "CLIENTE SEM ACESSO". Alterando tipo...');
-            await wait(200);
-            await setValueWithDelay('#id_tipo', 1);
+            showNotification('Tipo detectado: Cliente Sem Acesso');
+            await wait(100);
+            await setValueWithDelay('#id_tipo', '1', 100);
 
         } else if (isLento) {
             console.log('[Extensão ATI] Detectado fluxo de "CLIENTE RELATA LENTIDÃO". Alterando tipo...');
-            await wait(200);
-            await setValueWithDelay('#id_tipo', 3);
+            showNotification('Tipo detectado: Cliente Relata Lentidão');
+            await wait(100);
+            await setValueWithDelay('#id_tipo', '3', 100);
             
         } else {
             console.log('[Extensão ATI] Fluxo padrão de O.S. (nenhum tipo específico será selecionado).');
+            showNotification('Tipo detectado: Ocorrência Padrão');
             if (!clipboardText.includes(' | ')) {
-                alert('O texto na área de transferência não parece ser uma O.S. válida.');
+                showNotification('O texto na área de transferência não parece ser uma O.S. válida.', true);
             }
         }
 
         console.log('[Extensão ATI] Preenchimento concluído!');
+        showNotification('[Extensão ATI] Formulário preenchido com sucesso!');
 
     } catch (error) {
-        console.error('[Extensão ATI] Erro ao preencher formulário SGP:', error);
-        alert('Ocorreu um erro ao tentar preencher o formulário.');
+        console.log('[Extensão ATI] Erro ao preencher formulário SGP:', error);
+        showNotification('[Extensão ATI] Erro ao preencher. Modelo invalido ou não conseguiu rodar o codigo', true);
     }
 }
 
