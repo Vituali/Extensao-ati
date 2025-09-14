@@ -87,16 +87,30 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
         return;
     }
 
+    // ===============================================================================
+    // ## INÍCIO DA CORREÇÃO ##
+    // Adicionamos um filtro para remover quaisquer templates nulos ou inválidos da lista.
+    // Isso impede que o código quebre ao tentar ler propriedades de 'null'.
+    // ===============================================================================
+    const validTemplates = allTemplates.filter(t => t && typeof t === 'object');
+
     const clientChatTexts = extractChatFn(chatBody);
-    const suggestedTemplate = findSuggestedTemplate(clientChatTexts, allTemplates);
+    // Usamos a lista 'validTemplates' a partir de agora
+    const suggestedTemplate = findSuggestedTemplate(clientChatTexts, validTemplates);
     const { firstName, phoneNumber } = extractDataFn(chatHeader);
     const osBaseText = `${phoneNumber || ''} ${firstName || ''} | `;
-    const osOnlyTemplates = allTemplates.filter(t => t.category !== 'quick_reply');
+    // Usamos a lista 'validTemplates' aqui também
+    const osOnlyTemplates = validTemplates.filter(t => t.category !== 'quick_reply');
 
     const templatesByCategory = osOnlyTemplates.reduce((acc, t) => {
         (acc[t.category || 'Outros'] = acc[t.category || 'Outros'] || []).push(t);
         return acc;
     }, {});
+    // ===============================================================================
+    // ## FIM DA CORREÇÃO ##
+    // O resto da função continua como antes.
+    // ===============================================================================
+
     let modelsHTML = '';
     for (const category in templatesByCategory) {
         modelsHTML += `<h4 class="modal-category-title">${category}</h4>`;
@@ -136,7 +150,6 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
         </div>`;
     modalBackdrop.appendChild(modalContent);
     
-    // Anexa o modal ao contêiner seguro
     getOrCreateExtensionContainer().appendChild(modalBackdrop);
 
     const osTextArea = modalContent.querySelector('#osTextArea');
@@ -158,8 +171,8 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
             showNotification("O.S. copiada com sucesso!");
             closeModal();
         }).catch(err => showNotification("Falha ao copiar O.S.", true));
-    }; // ADICIONE ESTA LINHA: };
-
+    };
+    
     modalContent.querySelector('.main-btn--sgp').onclick = async () => {
         const osText = osTextArea.value;
         if (!osText || osText.trim() === '|') {
@@ -167,23 +180,19 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
             return;
         }
 
-        // Verifica se os dados do cliente foram recebidos corretamente
         if (!clientData || !clientData.cpfCnpj) {
             showNotification("CPF/CNPJ do cliente não encontrado no chat. Não é possível abrir o SGP.", true);
             return;
         }
 
         showNotification("Preparando para abrir SGP...");
-
         try {
-            // Salva os dados para o background script usar
             await chrome.storage.local.set({ 
                 cpfCnpj: clientData.cpfCnpj, 
                 fullName: clientData.fullName,
                 phoneNumber: clientData.phoneNumber,
                 osText: osText 
             });
-            // Envia a mensagem para o background script
             chrome.runtime.sendMessage({ action: "createOccurrenceInSgp" });
             closeModal();
         } catch (error) {

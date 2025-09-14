@@ -6,7 +6,7 @@ async function loadTemplatesFromStorage() {
       atendenteAtual
     }) => {
       if (!atendenteAtual) {
-        console.log("[Extensão ATI] Nenhum atendente definido. Use o site-painel para fazer login.");
+        console.log("[Extensão ATI] Nenhum atendente definido.");
         if (typeof showNotification === 'function') {
           showNotification("ATI: Faça o login no painel para carregar seus modelos.", true, 5000);
         }
@@ -14,25 +14,31 @@ async function loadTemplatesFromStorage() {
         return;
       }
 
-      console.log(`[Extensão ATI] Tentando carregar modelos para: ${atendenteAtual}`);
+      console.log(`[Extensão ATI] Carregando modelos para: ${atendenteAtual}`);
       try {
-        const firebaseTemplates = await fetchTemplatesFromFirebase(atendenteAtual);
+        // Fetch from both 'respostas' and the new 'modelos_os' nodes
+        const [quickReplies, osTemplates] = await Promise.all([
+          fetchTemplatesFromFirebase(atendenteAtual, 'respostas'),
+          fetchTemplatesFromFirebase(atendenteAtual, 'modelos_os')
+        ]);
+
+        const allTemplates = (quickReplies || []).concat(osTemplates || []);
+
+        const validTemplates = Array.isArray(allTemplates) ?
+          allTemplates.filter(t => t && typeof t === 'object') : [];
+
         await chrome.storage.local.set({
-          cachedOsTemplates: firebaseTemplates
+          cachedOsTemplates: validTemplates
         });
-        console.log(`[Extensão ATI] ${firebaseTemplates.length} modelos de '${atendenteAtual}' carregados do Firebase.`);
-        resolve(firebaseTemplates);
+        console.log(`[Extensão ATI] ${validTemplates.length} modelos VÁLIDOS de '${atendenteAtual}' carregados do Firebase.`);
+        resolve(validTemplates);
 
       } catch (error) {
-        console.error("[Extensão ATI] Falha ao carregar do Firebase. Tentando usar o cache local.", error);
+        console.error("[Extensão ATI] Falha ao carregar do Firebase. Usando cache.", error);
         chrome.storage.local.get('cachedOsTemplates', (cache) => {
-          if (cache.cachedOsTemplates) {
-            console.log("[Extensão ATI] Modelos carregados do cache como fallback.");
-            resolve(cache.cachedOsTemplates);
-          } else {
-            console.error("[Extensão ATI] Cache também está vazio. Nenhum modelo carregado.");
-            resolve([]);
-          }
+          const cachedValidTemplates = cache.cachedOsTemplates || [];
+          console.log(`[Extensão ATI] ${cachedValidTemplates.length} modelos carregados do cache como fallback.`);
+          resolve(cachedValidTemplates);
         });
       }
     });

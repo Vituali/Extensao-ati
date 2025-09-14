@@ -35,41 +35,41 @@ chrome.commands.onCommand.addListener(async (command) => {
 
 // Listener para mensagens da extensão
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "userChanged") {
-    console.log("[Background] Usuário mudou. Recarregando abas do Chatmix...");
-    chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
-      tabs.forEach(tab => {
-        chrome.tabs.sendMessage(tab.id, { action: "reloadTemplates" }, () => {
-          handleLastError(`A aba ${tab.id} não estava pronta.`);
-        });
-      });
-    });
-    return true;
-  }
+  if (request.action === "userChanged") {
+    console.log("[Background] Usuário mudou. Recarregando abas do Chatmix...");
+    chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
+      tabs.forEach(tab => {
+        chrome.tabs.sendMessage(tab.id, { action: "reloadTemplates" }, () => {
+          handleLastError(`A aba ${tab.id} não estava pronta.`);
+        });
+      });
+    });
+    return true;
+  }
 
-  if (request.action === "createOccurrenceInSgp") {
-    createOccurrenceInSgp();
-    return true;
-  }
+  if (request.action === "createOccurrenceInSgp") {
+    createOccurrenceInSgp();
+    return true;
+  }
 
-  if (request.action === "openInSgp") {
-    searchClientInSgp();
-    return true;
-  }
+  if (request.action === "openInSgp") {
+    searchClientInSgp();
+    return true; 
+  }
 
-  if (request.action === "themeUpdated") {
-    console.log("[Background] Tema mudou. Avisando abas do Chatmix...");
-    chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
-        tabs.forEach(tab => {
-            chrome.tabs.sendMessage(tab.id, { action: "applyTheme", settings: request.settings }, () => {
-              handleLastError(`A aba ${tab.id} não estava pronta para aplicar o tema.`);
-            });
-        });
-    });
-    return true;
-  }
+  if (request.action === "themeUpdated") {
+    console.log("[Background] Tema mudou. Avisando abas do Chatmix...");
+    chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
+        tabs.forEach(tab => {
+            chrome.tabs.sendMessage(tab.id, { action: "applyTheme", settings: request.settings }, () => {
+                handleLastError(`A aba ${tab.id} não estava pronta para aplicar o tema.`);
+            });
+        });
+    });
+    return true;
+  }
 
-  return true;
+  return true;
 });
 
 /**
@@ -77,18 +77,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
  * contenha um texto específico no título. Se encontrar, foca nela. Senão, cria uma nova.
  */
 async function openOrFocusTab(url, urlPattern, titleQuery) {
+  // A busca por URL genérica serve apenas para limitar a busca inicial
   const tabs = await chrome.tabs.query({ url: urlPattern });
-
+  
+  // Passo 1: Tenta encontrar uma aba que já seja do cliente específico pelo título
   const matchingTab = tabs.find(tab => tab.title && tab.title.includes(titleQuery));
 
   if (matchingTab) {
-    await chrome.tabs.highlight({ windowId: matchingTab.windowId, tabs: matchingTab.index });
+    // Se encontrou a aba do cliente, ATUALIZA A URL dela para a página correta e foca.
+    console.log(`[SGP] Aba para o cliente "${titleQuery}" encontrada. Atualizando e focando.`);
+    await chrome.tabs.update(matchingTab.id, { url: url, active: true });
     await chrome.windows.update(matchingTab.windowId, { focused: true });
+    return matchingTab;
   } else {
-    await chrome.tabs.create({ url: url });
+    // Passo 2: Se não encontrou NENHUMA aba para ESTE cliente, cria uma nova.
+    console.log(`[SGP] Nenhuma aba para o cliente "${titleQuery}" encontrada. Criando uma nova.`);
+    const newTab = await chrome.tabs.create({ url: url });
+    return newTab;
   }
 }
-
 /**
  * Busca o cliente no SGP com lógica de fallback e trava de segurança.
  */
@@ -178,21 +185,9 @@ async function createOccurrenceInSgp() {
     isSearchRunning = true;
 
     try {
-        // Pega os dados que o content script salvou
         const { cpfCnpj, fullName, phoneNumber, osText } = await chrome.storage.local.get([
             "cpfCnpj", "fullName", "phoneNumber", "osText"
         ]);
-
-        // [NOVO] Coloca o texto da O.S. no clipboard para o sgp.js usar
-        if (osText) {
-            // Esta é uma forma de escrever no clipboard pelo background script
-            await chrome.scripting.executeScript({
-                target: { tabId: (await chrome.tabs.query({ active: true, currentWindow: true }))[0].id },
-                func: (text) => navigator.clipboard.writeText(text),
-                args: [osText]
-            });
-            console.log("[SGP] Texto da O.S. copiado para a área de transferência.");
-        }
 
         const executeSearch = async (url) => {
             try {
@@ -204,61 +199,56 @@ async function createOccurrenceInSgp() {
                 return null;
             }
         };
-
-        const openOccurrencePage = (client) => {
+        
+        const openAndFillOccurrencePage = async (client) => {
             const clientId = client.id;
             const clientNameFromApi = client.label.split(' - ')[0].trim();
             const titleQuery = `${clientNameFromApi} (${clientId})`;
-            // https://www.spanishdict.com/translate/modificada Aponta para a página de adicionar ocorrência
             const occurrencePageUrl = `https://sgp.atiinternet.com.br/admin/atendimento/cliente/${clientId}/ocorrencia/add/`;
             const urlPattern = `https://sgp.atiinternet.com.br/admin/*`;
-            openOrFocusTab(occurrencePageUrl, urlPattern, titleQuery);
+
+            // Salva o texto da O.S. em uma área temporária que o sgp.js vai verificar
+            await chrome.storage.local.set({ pendingOsText: osText });
+
+            const sgpTab = await openOrFocusTab(occurrencePageUrl, urlPattern, titleQuery);
+
+            // Envia a mensagem de qualquer maneira. Se a aba já estiver aberta, ela receberá.
+            // Se for uma aba nova, o sgp.js pegará os dados do storage ao carregar.
+            chrome.tabs.sendMessage(sgpTab.id, {
+                action: "fillSgpForm",
+                osText: osText
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    // Erro "Receiving end does not exist" é esperado se a aba for nova. Ignoramos.
+                    console.log("Aba do SGP é nova, o preenchimento ocorrerá ao carregar.");
+                } else {
+                    console.log("Aba do SGP já estava aberta, preenchimento enviado por mensagem.");
+                }
+            });
         };
 
-        // Lógica de busca (idêntica à função original, mas chama openOccurrencePage)
+        // Lógica de busca (sem alterações)
         if (cpfCnpj) {
-            const searchUrl = `https://sgp.atiinternet.com.br/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`;
-            const client = await executeSearch(searchUrl);
-            if (client) {
-                console.log(`[SGP] Sucesso na Etapa 1 (CPF/CNPJ). Abrindo ocorrência para ID: ${client.id}`);
-                openOccurrencePage(client);
-                return;
-            }
+            const client = await executeSearch(`https://sgp.atiinternet.com.br/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
+            if (client) { await openAndFillOccurrencePage(client); return; }
         }
-
         if (fullName) {
-            const searchUrl = `https://sgp.atiinternet.com.br/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`;
-            const client = await executeSearch(searchUrl);
-            if (client) {
-                console.log(`[SGP] Sucesso na Etapa 2 (Nome). Abrindo ocorrência para ID: ${client.id}`);
-                openOccurrencePage(client);
-                return;
-            }
+             const client = await executeSearch(`https://sgp.atiinternet.com.br/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
+             if (client) { await openAndFillOccurrencePage(client); return; }
         }
-
         if (phoneNumber) {
-            let cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
-            if (cleanPhoneNumber.startsWith('55') && cleanPhoneNumber.length > 11) {
-                cleanPhoneNumber = cleanPhoneNumber.substring(2);
-            }
-            const searchUrl = `https://sgp.atiinternet.com.br/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhoneNumber}`;
-            const client = await executeSearch(searchUrl);
-            if (client) {
-                console.log(`[SGP] Sucesso na Etapa 3 (Telefone). Abrindo ocorrência para ID: ${client.id}`);
-                openOccurrencePage(client);
-                return;
-            }
+            let cleanPhoneNumber = phoneNumber.replace(/\D/g, '').substring(2);
+            const client = await executeSearch(`https://sgp.atiinternet.com.br/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhoneNumber}`);
+            if (client) { await openAndFillOccurrencePage(client); return; }
         }
 
-        console.log("[SGP] Nenhum cliente encontrado para criar ocorrência. Abrindo a página de busca geral.");
-        const sgpSearchPageUrl = 'https://sgp.atiinternet.com.br/admin/';
-        const urlPattern = 'https://sgp.atiinternet.com.br/admin/*';
-        await openOrFocusTab(sgpSearchPageUrl, urlPattern, "SGP");
+        console.log("[SGP] Nenhum cliente encontrado. Abrindo busca geral.");
+        await openOrFocusTab('https://sgp.atiinternet.com.br/admin/', 'https://sgp.atiinternet.com.br/admin/*', "SGP");
 
     } finally {
         isSearchRunning = false;
     }
-}   
+}
 
 // Listener para o clique no ícone da extensão
 chrome.action.onClicked.addListener((tab) => {
@@ -369,6 +359,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 async function runExtension() {
   injectCSS('injected.css');
+  
   if (typeof initializeActions === "function" && typeof loadTemplatesFromStorage === "function") {
     
     if (!document.getElementById('actionsContainer')) {
@@ -377,14 +368,18 @@ async function runExtension() {
 
     console.log("ATI Extensão: runExtension iniciada.");
     try {
+      // Aplica o tema visual do site-painel
+      if (typeof applySiteTheme === "function") applySiteTheme();
+
+      // Carrega os modelos de O.S. e Respostas
       const templates = await loadTemplatesFromStorage();
       console.log("ATI Extensão: Templates carregados.");
       window.osTemplates = templates;
       
-      // Inicia o "sequestrador" de modal
+      // Inicia a lógica de interface (botões, modal, etc.)
       initializeModalHijacker();
-
       console.log("ATI Extensão: Funções de UI inicializadas com sucesso.");
+
     } catch (error) {
       console.error("ATI Extensão: Erro fatal durante a inicialização.", error);
     }
@@ -1150,7 +1145,7 @@ async function loadTemplatesFromStorage() {
       atendenteAtual
     }) => {
       if (!atendenteAtual) {
-        console.log("[Extensão ATI] Nenhum atendente definido. Use o site-painel para fazer login.");
+        console.log("[Extensão ATI] Nenhum atendente definido.");
         if (typeof showNotification === 'function') {
           showNotification("ATI: Faça o login no painel para carregar seus modelos.", true, 5000);
         }
@@ -1158,25 +1153,30 @@ async function loadTemplatesFromStorage() {
         return;
       }
 
-      console.log(`[Extensão ATI] Tentando carregar modelos para: ${atendenteAtual}`);
+      console.log(`[Extensão ATI] Carregando modelos para: ${atendenteAtual}`);
       try {
         const firebaseTemplates = await fetchTemplatesFromFirebase(atendenteAtual);
+
+        // =======================================================================
+        // ## INÍCIO DA CORREÇÃO DEFINITIVA ##
+        // Aqui, garantimos que a lista seja sempre válida, removendo quaisquer
+        // entradas nulas ou corrompidas antes de usar ou salvar em cache.
+        // =======================================================================
+        const validTemplates = Array.isArray(firebaseTemplates) ? firebaseTemplates.filter(t => t && typeof t === 'object') : [];
+        
         await chrome.storage.local.set({
-          cachedOsTemplates: firebaseTemplates
+          cachedOsTemplates: validTemplates // Salva a lista JÁ LIMPA no cache
         });
-        console.log(`[Extensão ATI] ${firebaseTemplates.length} modelos de '${atendenteAtual}' carregados do Firebase.`);
-        resolve(firebaseTemplates);
+        console.log(`[Extensão ATI] ${validTemplates.length} modelos VÁLIDOS de '${atendenteAtual}' carregados do Firebase.`);
+        resolve(validTemplates); // Retorna apenas os modelos válidos
 
       } catch (error) {
-        console.error("[Extensão ATI] Falha ao carregar do Firebase. Tentando usar o cache local.", error);
+        console.error("[Extensão ATI] Falha ao carregar do Firebase. Usando cache.", error);
         chrome.storage.local.get('cachedOsTemplates', (cache) => {
-          if (cache.cachedOsTemplates) {
-            console.log("[Extensão ATI] Modelos carregados do cache como fallback.");
-            resolve(cache.cachedOsTemplates);
-          } else {
-            console.error("[Extensão ATI] Cache também está vazio. Nenhum modelo carregado.");
-            resolve([]);
-          }
+          // O cache também já terá sido limpo em uma execução anterior bem-sucedida.
+          const cachedValidTemplates = cache.cachedOsTemplates || [];
+          console.log(`[Extensão ATI] ${cachedValidTemplates.length} modelos carregados do cache como fallback.`);
+          resolve(cachedValidTemplates);
         });
       }
     });
@@ -1434,6 +1434,9 @@ function injectCSS(filePath) {
 
 // --- scripts\sgp.js ---
 
+// --- sgp.js (VERSÃO 100% COMPLETA E FINAL) ---
+// Inclui preenchimento automático, fallback manual, seletor de contrato e verificação de O.S. pendente.
+
 const ATTENDANTS = {
     'VICTORH': '99',
     'LUCASJ': '100',
@@ -1441,6 +1444,7 @@ const ATTENDANTS = {
     'IGORMAGALHAES': '68',
     'JEFFERSON': '62',
 };
+
 // ------------------------------------
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -1475,159 +1479,234 @@ const setValueWithDelay = (selector, value, delay) => {
     });
 };
 
-/**
- * Função principal que lê os dados do clipboard e preenche o formulário.
- */
-async function fillSgpForm() {
-    try {
-        const clipboardText = await navigator.clipboard.readText();
-        if (!clipboardText) {
-            return showNotification('[Extensão ATI] A área de transferência está vazia.', true);
+function injectContractModalStyles() {
+    const styleId = 'ati-contract-modal-styles';
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+        .contract-options-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 15px;
         }
+        .contract-option {
+            display: block;
+            padding: 12px;
+            border: 1px solid var(--theme-border-color, #555);
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .contract-option:hover {
+            background-color: var(--theme-button-hover-bg, #0056b3);
+        }
+        .contract-option input[type="radio"] {
+            margin-right: 10px;
+        }
+    `;
+    document.head.appendChild(style);
+}
 
-        const upperCaseText = clipboardText.toUpperCase();
-        console.log('[Extensão ATI] Iniciando preenchimento manual...');
+function promptForContractSelection(contracts) {
+    return new Promise((resolve, reject) => {
+        if (document.getElementById('ati-contract-modal')) return reject('Modal já está aberto.');
 
-        // --- PREENCHIMENTO PADRÃO PARA TODOS OS FLUXOS ---
+        injectContractModalStyles();
+
+        const modalBackdrop = document.createElement('div');
+        modalBackdrop.id = 'ati-contract-modal';
+        modalBackdrop.className = 'modal-backdrop ati-os-modal';
+
+        const contractOptionsHTML = contracts.map((contract, index) => `
+            <label class="contract-option">
+                <input type="radio" name="selected_contract" value="${contract.id}" ${index === 0 ? 'checked' : ''}>
+                <span>${contract.text}</span>
+            </label>
+        `).join('');
+
+        modalBackdrop.innerHTML = `
+            <div class="modal-content" style="max-width: 550px;">
+                <div class="modal-header">
+                    <h3>Selecione o Contrato Correto</h3>
+                </div>
+                <div class="modal-body">
+                    <p>Este cliente possui múltiplos contratos ativos. Por favor, escolha qual deles deve ser associado a esta ocorrência.</p>
+                    <div class="contract-options-container">${contractOptionsHTML}</div>
+                </div>
+                <div class="modal-footer">
+                    <button id="cancel-contract-selection" class="main-btn main-btn--cancel">Cancelar</button>
+                    <button id="confirm-contract-selection" class="main-btn main-btn--confirm">Confirmar</button>
+                </div>
+            </div>
+        `;
         
-        // 1. Usuário/Responsável
+        document.body.appendChild(modalBackdrop);
+
+        const confirmBtn = document.getElementById('confirm-contract-selection');
+        const cancelBtn = document.getElementById('cancel-contract-selection');
+
+        const closeModal = () => modalBackdrop.remove();
+
+        cancelBtn.onclick = () => {
+            closeModal();
+            reject('Seleção de contrato cancelada.');
+        };
+
+        confirmBtn.onclick = () => {
+            const selectedRadio = document.querySelector('input[name="selected_contract"]:checked');
+            if (selectedRadio) {
+                closeModal();
+                resolve(selectedRadio.value);
+            } else {
+                showNotification('Por favor, selecione um contrato.', true);
+            }
+        };
+    });
+}
+
+async function fillSgpForm(osText) {
+    try {
+        if (!osText) {
+            return showNotification('[Extensão ATI] Nenhum texto de O.S. para preencher.', true);
+        }
+        const upperCaseText = osText.toUpperCase();
+        console.log('[Extensão ATI] Iniciando preenchimento do formulário...');
+
         const selectedAttendant = localStorage.getItem('sgp_selected_attendant');
         if (selectedAttendant) {
             await setValueWithDelay('#id_responsavel', selectedAttendant, 50);
         }
 
-        // 2. Contrato
-        const validContracts = $('#id_clientecontrato option').filter(function() {
+        const contractOptions = $('#id_clientecontrato option').filter(function() {
             return $(this).val() !== '' && !$(this).text().toUpperCase().includes('CANCELADO');
         });
-        if (validContracts.length === 1) {
-            await setValueWithDelay('#id_clientecontrato', validContracts.val(), 50);
-        } else if (validContracts.length > 1) {
-            showNotification('[Extensão ATI] Múltiplos contratos ativos. Selecione o correto manualmente.', true, 5000);
+
+        if (contractOptions.length === 1) {
+            await setValueWithDelay('#id_clientecontrato', contractOptions.val(), 50);
+        } else if (contractOptions.length > 1) {
+            const contracts = contractOptions.map(function() { return { id: $(this).val(), text: $(this).text() }; }).get();
+            try {
+                const selectedContractId = await promptForContractSelection(contracts);
+                await setValueWithDelay('#id_clientecontrato', selectedContractId, 50);
+            } catch (errorMsg) {
+                showNotification(errorMsg, true);
+                return;
+            }
         }
         
-        // 3. Setor, Método e Status (padrão para Suporte Técnico)
-        await setValueWithDelay('#id_setor', '2', 100);   // Suporte Tecnico
-        await setValueWithDelay('#id_metodo', '3', 100);  // Suporte Online
-        await setValueWithDelay('#id_status', '1', 100);  // Encerrada
-        
-        // 4. Data de Agendamento e Checkbox "Gerar O.S."
+        await setValueWithDelay('#id_setor', '2', 100);
+        await setValueWithDelay('#id_metodo', '3', 100);
+        await setValueWithDelay('#id_status', '1', 100);
         $('#id_data_agendamento').val(getCurrentFormattedDateTime());
         $('#id_os').prop('checked', false);
-
-        // 5. Conteúdo da Ocorrência
         $('#id_conteudo').val(upperCaseText);
-        
-        // --- LÓGICA ESPECÍFICA PARA O TIPO DE OCORRÊNCIA ---
+
         const isComprovante = upperCaseText.includes('ENVIO DE COMPROVANTE');
         const isPromessa = upperCaseText.includes('PROMESSA DE PAGAMENTO');
         const isSemAcesso = upperCaseText.includes('CLIENTE SEM ACESSO');
         const isLento = upperCaseText.includes('CLIENTE RELATA LENTIDÃO');
+        if (isComprovante) await setValueWithDelay('#id_tipo', '42', 100);
+        else if (isPromessa) await setValueWithDelay('#id_tipo', '41', 100);
+        else if (isSemAcesso) await setValueWithDelay('#id_tipo', '1', 100);
+        else if (isLento) await setValueWithDelay('#id_tipo', '3', 100);
 
-        if (isComprovante) {
-            console.log('[Extensão ATI] Detectado fluxo de "Envio de Comprovante". Alterando tipo...');
-            showNotification('Tipo detectado: Envio de Comprovante');
-            await wait(100);
-            await setValueWithDelay('#id_tipo', '42', 100);
-        
-        } else if (isPromessa) {
-            console.log('[Extensão ATI] Detectado fluxo de "Promessa de Pagamento". Alterando tipo...');
-            showNotification('Tipo detectado: Promessa de Pagamento');
-            await wait(100);
-            await setValueWithDelay('#id_tipo', '41', 100);
-        
-        } else if (isSemAcesso) {
-            console.log('[Extensão ATI] Detectado fluxo de "CLIENTE SEM ACESSO". Alterando tipo...');
-            showNotification('Tipo detectado: Cliente Sem Acesso');
-            await wait(100);
-            await setValueWithDelay('#id_tipo', '1', 100);
-
-        } else if (isLento) {
-            console.log('[Extensão ATI] Detectado fluxo de "CLIENTE RELATA LENTIDÃO". Alterando tipo...');
-            showNotification('Tipo detectado: Cliente Relata Lentidão');
-            await wait(100);
-            await setValueWithDelay('#id_tipo', '3', 100);
-            
-        } else {
-            console.log('[Extensão ATI] Fluxo padrão de O.S. (nenhum tipo específico será selecionado).');
-            showNotification('Tipo detectado: Ocorrência Padrão');
-            if (!clipboardText.includes(' | ')) {
-                showNotification('O texto na área de transferência não parece ser uma O.S. válida.', true);
-            }
-        }
-
-        console.log('[Extensão ATI] Preenchimento concluído!');
         showNotification('[Extensão ATI] Formulário preenchido com sucesso!');
-
     } catch (error) {
-        console.log('[Extensão ATI] Erro ao preencher formulário SGP:', error);
-        showNotification('[Extensão ATI] Erro ao preencher. Modelo invalido ou não conseguiu rodar o codigo', true);
+        console.error('[Extensão ATI] Erro ao preencher formulário SGP:', error);
     }
 }
 
+async function handleManualFillClick() {
+    console.log('[Extensão ATI] Botão de preenchimento manual clicado.');
+    try {
+        const clipboardText = await navigator.clipboard.readText();
+        if (!clipboardText) {
+            showNotification('A área de transferência está vazia.', true);
+            return;
+        }
+        fillSgpForm(clipboardText);
+    } catch (error) {
+        console.error('[Extensão ATI] Falha ao ler da área de transferência:', error);
+        showNotification('Falha ao ler da área de transferência. Verifique as permissões do navegador.', true);
+    }
+}
+
+function injectSgpButton() {
+    if (document.getElementById('fill-from-chatmix-btn')) return;
+    const submitButton = document.getElementById('btacao');
+    if (submitButton) {
+        const customButton = document.createElement('input');
+        customButton.id = 'fill-from-chatmix-btn';
+        customButton.type = 'button';
+        customButton.value = 'Preencher com Dados Copiados';
+        customButton.className = 'button blue';
+        customButton.style.marginLeft = '10px';
+        customButton.addEventListener('click', handleManualFillClick);
+        submitButton.parentNode.insertBefore(customButton, submitButton.nextSibling);
+    }
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "fillSgpForm") {
+        console.log("[Extensão ATI] Preenchendo via mensagem (aba já aberta).");
+        fillSgpForm(request.osText);
+        sendResponse({ status: "Formulário preenchido." });
+    }
+    return true;
+});
+
 function injectAttendantSelector() {
     if (document.getElementById('attendant-selector-container')) return;
-
     const container = document.createElement('div');
     container.id = 'attendant-selector-container';
     container.style.cssText = 'position: absolute; top: 10px; right: 450px; z-index: 9999; display: flex; align-items: center; color: white;';
-
     const label = document.createElement('label');
     label.innerText = 'Atendente da Extensão:';
     label.style.marginRight = '10px';
     label.style.fontWeight = 'bold';
-
     const select = document.createElement('select');
     select.id = 'sgp-attendant-selector';
     select.style.padding = '5px';
     select.style.borderRadius = '4px';
-    
     Object.keys(ATTENDANTS).forEach(name => {
         const option = document.createElement('option');
         option.value = ATTENDANTS[name];
         option.innerText = name;
         select.appendChild(option);
     });
-
     const savedAttendant = localStorage.getItem('sgp_selected_attendant');
     if (savedAttendant) {
         select.value = savedAttendant;
     } else {
         localStorage.setItem('sgp_selected_attendant', select.value);
     }
-
     select.addEventListener('change', () => {
         localStorage.setItem('sgp_selected_attendant', select.value);
     });
-
     container.appendChild(label);
     container.appendChild(select);
-
     document.getElementById('header-right').prepend(container);
 }
 
-function injectSgpButton() {
-    if (document.getElementById('fill-from-chatmix-btn')) return;
+async function initializeSgpScript() {
+    injectSgpButton();
+    injectAttendantSelector();
     
-    const submitButton = document.getElementById('btacao');
-    if (submitButton) {
-        const customButton = document.createElement('input');
-        customButton.id = 'fill-from-chatmix-btn';
-        customButton.type = 'button';
-        customButton.value = 'Preencher com Dados do Chatmix';
-        customButton.className = 'button blue';
-        customButton.style.marginLeft = '10px';
-        customButton.addEventListener('click', fillSgpForm);
-        submitButton.parentNode.insertBefore(customButton, submitButton.nextSibling);
+    const data = await chrome.storage.local.get('pendingOsText');
+    if (data.pendingOsText) {
+        console.log("[Extensão ATI] Texto de O.S. pendente encontrado. Preenchendo formulário.");
+        await fillSgpForm(data.pendingOsText);
+        chrome.storage.local.remove('pendingOsText');
     }
 }
 
-// Inicia o script injetando apenas os elementos manuais
 const readyCheckInterval = setInterval(() => {
     if (document.getElementById('btacao') && document.getElementById('header-right')) {
         clearInterval(readyCheckInterval);
-        injectSgpButton();
-        injectAttendantSelector();
+        initializeSgpScript();
     }
 }, 500);
 
@@ -1722,16 +1801,30 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
         return;
     }
 
+    // ===============================================================================
+    // ## INÍCIO DA CORREÇÃO ##
+    // Adicionamos um filtro para remover quaisquer templates nulos ou inválidos da lista.
+    // Isso impede que o código quebre ao tentar ler propriedades de 'null'.
+    // ===============================================================================
+    const validTemplates = allTemplates.filter(t => t && typeof t === 'object');
+
     const clientChatTexts = extractChatFn(chatBody);
-    const suggestedTemplate = findSuggestedTemplate(clientChatTexts, allTemplates);
+    // Usamos a lista 'validTemplates' a partir de agora
+    const suggestedTemplate = findSuggestedTemplate(clientChatTexts, validTemplates);
     const { firstName, phoneNumber } = extractDataFn(chatHeader);
     const osBaseText = `${phoneNumber || ''} ${firstName || ''} | `;
-    const osOnlyTemplates = allTemplates.filter(t => t.category !== 'quick_reply');
+    // Usamos a lista 'validTemplates' aqui também
+    const osOnlyTemplates = validTemplates.filter(t => t.category !== 'quick_reply');
 
     const templatesByCategory = osOnlyTemplates.reduce((acc, t) => {
         (acc[t.category || 'Outros'] = acc[t.category || 'Outros'] || []).push(t);
         return acc;
     }, {});
+    // ===============================================================================
+    // ## FIM DA CORREÇÃO ##
+    // O resto da função continua como antes.
+    // ===============================================================================
+
     let modelsHTML = '';
     for (const category in templatesByCategory) {
         modelsHTML += `<h4 class="modal-category-title">${category}</h4>`;
@@ -1771,7 +1864,6 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
         </div>`;
     modalBackdrop.appendChild(modalContent);
     
-    // Anexa o modal ao contêiner seguro
     getOrCreateExtensionContainer().appendChild(modalBackdrop);
 
     const osTextArea = modalContent.querySelector('#osTextArea');
@@ -1793,30 +1885,28 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
             showNotification("O.S. copiada com sucesso!");
             closeModal();
         }).catch(err => showNotification("Falha ao copiar O.S.", true));
-        modalContent.querySelector('.main-btn--sgp').onclick = async () => {
+    };
+    
+    modalContent.querySelector('.main-btn--sgp').onclick = async () => {
         const osText = osTextArea.value;
         if (!osText || osText.trim() === '|') {
             showNotification("A descrição da O.S. está vazia.", true);
             return;
         }
 
-        // Verifica se os dados do cliente foram recebidos corretamente
         if (!clientData || !clientData.cpfCnpj) {
             showNotification("CPF/CNPJ do cliente não encontrado no chat. Não é possível abrir o SGP.", true);
             return;
         }
 
         showNotification("Preparando para abrir SGP...");
-
         try {
-            // Salva os dados para o background script usar
             await chrome.storage.local.set({ 
                 cpfCnpj: clientData.cpfCnpj, 
                 fullName: clientData.fullName,
                 phoneNumber: clientData.phoneNumber,
                 osText: osText 
             });
-            // Envia a mensagem para o background script
             chrome.runtime.sendMessage({ action: "createOccurrenceInSgp" });
             closeModal();
         } catch (error) {

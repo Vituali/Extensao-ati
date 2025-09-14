@@ -13,16 +13,16 @@ const firebaseConfig = {
 };
 
 // Função para buscar os templates usando a API REST do Realtime Database
-async function fetchTemplatesFromFirebase(username) {
+async function fetchTemplatesFromFirebase(username, dataType = 'respostas') {
   if (!username) {
     console.log("Nenhum atendente logado, não há respostas para buscar.");
-    return []; // Retorna vazio se não houver usuário
+    return []; 
   }
 
   const dbURL = firebaseConfig.databaseURL;
-  // Constrói a URL para o nó específico do atendente
-  const url = `${dbURL}respostas/${username}.json`;
-
+  // Constrói a URL para o nó específico do atendente e do tipo de dado
+  const url = `${dbURL}${dataType}/${username}.json`;
+  
   try {
     const response = await fetch(url);
     if (!response.ok) {
@@ -37,9 +37,8 @@ async function fetchTemplatesFromFirebase(username) {
     
     // A API REST retorna os dados no formato correto (array de objetos)
     return data;
-
   } catch (error) {
-    console.error(`[Extensão ATI] Falha ao buscar dados para '${username}'.`, error);
+    console.error(`[Extensão ATI] Falha ao buscar dados para '${username}' em '${dataType}'.`, error);
     throw error;
   }
 }

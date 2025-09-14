@@ -18,6 +18,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 async function runExtension() {
   injectCSS('injected.css');
+  
   if (typeof initializeActions === "function" && typeof loadTemplatesFromStorage === "function") {
     
     if (!document.getElementById('actionsContainer')) {
@@ -26,14 +27,18 @@ async function runExtension() {
 
     console.log("ATI Extensão: runExtension iniciada.");
     try {
+      // Aplica o tema visual do site-painel
+      if (typeof applySiteTheme === "function") applySiteTheme();
+
+      // Carrega os modelos de O.S. e Respostas
       const templates = await loadTemplatesFromStorage();
       console.log("ATI Extensão: Templates carregados.");
       window.osTemplates = templates;
       
-      // Inicia o "sequestrador" de modal
+      // Inicia a lógica de interface (botões, modal, etc.)
       initializeModalHijacker();
-
       console.log("ATI Extensão: Funções de UI inicializadas com sucesso.");
+
     } catch (error) {
       console.error("ATI Extensão: Erro fatal durante a inicialização.", error);
     }
