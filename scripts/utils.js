@@ -80,7 +80,7 @@ function findSuggestedTemplate(allTexts, allTemplates) {
  * @param {function} config.extractDataFn - Função para extrair dados do cabeçalho (nome, telefone).
  * @param {function} config.extractChatFn - Função para extrair o texto da conversa.
  */
-function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataFn, extractChatFn }) {
+function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataFn, extractChatFn, clientData }) {
     if (document.getElementById(modalId)) return;
     if (!chatHeader || !chatBody) {
         showNotification("Nenhum chat ativo encontrado para criar O.S.", true);
@@ -130,9 +130,9 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
              <div class="modal-templates-container"><strong>TODOS OS MODELOS:</strong>${modelsHTML}</div>
         </div>
         <div class="modal-footer">
-            <button class="main-btn main-btn--confirm">Copiar O.S.
- e Fechar</button>
-            <button class="main-btn main-btn--cancel">Cancelar</button>
+    <button class="main-btn main-btn--cancel">Cancelar</button>
+    <button class="main-btn main-btn--confirm">Copiar O.S.</button>
+    <button class="main-btn main-btn--sgp" style="background-color: #ff8c00;">Criar Ocorrência no SGP</button>
         </div>`;
     modalBackdrop.appendChild(modalContent);
     
@@ -158,6 +158,38 @@ function showOSModal({ modalId, chatHeader, chatBody, allTemplates, extractDataF
             showNotification("O.S. copiada com sucesso!");
             closeModal();
         }).catch(err => showNotification("Falha ao copiar O.S.", true));
+    }; // ADICIONE ESTA LINHA: };
+
+    modalContent.querySelector('.main-btn--sgp').onclick = async () => {
+        const osText = osTextArea.value;
+        if (!osText || osText.trim() === '|') {
+            showNotification("A descrição da O.S. está vazia.", true);
+            return;
+        }
+
+        // Verifica se os dados do cliente foram recebidos corretamente
+        if (!clientData || !clientData.cpfCnpj) {
+            showNotification("CPF/CNPJ do cliente não encontrado no chat. Não é possível abrir o SGP.", true);
+            return;
+        }
+
+        showNotification("Preparando para abrir SGP...");
+
+        try {
+            // Salva os dados para o background script usar
+            await chrome.storage.local.set({ 
+                cpfCnpj: clientData.cpfCnpj, 
+                fullName: clientData.fullName,
+                phoneNumber: clientData.phoneNumber,
+                osText: osText 
+            });
+            // Envia a mensagem para o background script
+            chrome.runtime.sendMessage({ action: "createOccurrenceInSgp" });
+            closeModal();
+        } catch (error) {
+            console.error("Erro ao enviar dados para o SGP:", error);
+            showNotification("Erro ao iniciar a busca no SGP.", true);
+        }
     };
     
     modalContent.querySelector('.modal-close-btn').onclick = closeModal;
@@ -239,4 +271,3 @@ function applySiteTheme() {
         `;
     });
 }
-
