@@ -1,152 +1,105 @@
-// logic.js - VERSÃO COM COLETA DE TEXTO CORRIGIDA
+// ===================================================================
+// == LOGIC.JS - FUNÇÕES DE LÓGICA DE NEGÓCIO COMPARTILHADAS        ==
+// ===================================================================
 
-async function loadTemplatesFromStorage() {
-  return new Promise((resolve) => {
-    chrome.storage.local.get('atendenteAtual', async ({
-      atendenteAtual
-    }) => {
-      if (!atendenteAtual) {
-        console.log("[Extensão ATI] Nenhum atendente definido.");
-        if (typeof showNotification === 'function') {
-          showNotification("ATI: Faça o login no painel para carregar seus modelos.", true, 5000);
-        }
-        resolve([]);
-        return;
-      }
+// -------------------------------------------------------------------
+// SEÇÃO: GERENCIAMENTO DE TEMPLATES (FIREBASE E CACHE)
+// -------------------------------------------------------------------
 
-      console.log(`[Extensão ATI] Carregando modelos para: ${atendenteAtual}`);
-      try {
-        // Fetch from both 'respostas' and the new 'modelos_os' nodes
-        const [quickReplies, osTemplates] = await Promise.all([
-          fetchTemplatesFromFirebase(atendenteAtual, 'respostas'),
-          fetchTemplatesFromFirebase(atendenteAtual, 'modelos_os')
-        ]);
-
-        const allTemplates = (quickReplies || []).concat(osTemplates || []);
-
-        const validTemplates = Array.isArray(allTemplates) ?
-          allTemplates.filter(t => t && typeof t === 'object') : [];
-
-        await chrome.storage.local.set({
-          cachedOsTemplates: validTemplates
-        });
-        console.log(`[Extensão ATI] ${validTemplates.length} modelos VÁLIDOS de '${atendenteAtual}' carregados do Firebase.`);
-        resolve(validTemplates);
-
-      } catch (error) {
-        console.error("[Extensão ATI] Falha ao carregar do Firebase. Usando cache.", error);
-        chrome.storage.local.get('cachedOsTemplates', (cache) => {
-          const cachedValidTemplates = cache.cachedOsTemplates || [];
-          console.log(`[Extensão ATI] ${cachedValidTemplates.length} modelos carregados do cache como fallback.`);
-          resolve(cachedValidTemplates);
-        });
-      }
-    });
-  });
-}
 /**
- * [NOVO]
- * Armazena o CPF/CNPJ e o texto da O.S. no storage local para
- * que o background script possa acessá-los e realizar a busca no SGP.
- * @param {string} cpfCnpj - O CPF ou CNPJ do cliente.
- * @param {string} osText - O texto completo da O.S. a ser colado.
+ * Carrega os templates (Respostas Rápidas e O.S.) para o atendente logado.
+ * Prioriza a busca no Firebase e, em caso de falha, utiliza os dados em cache.
+ * @returns {Promise<Array<Object>>} Uma promessa que resolve para um array de objetos de template.
  */
-async function storeDataForSgp(cpfCnpj, osText) {
-    await chrome.storage.local.set({ cpfCnpj, osText });
-}
-function findActiveAttendanceElement() {
-    // CORREÇÃO: O seletor agora busca por CADA painel de atendimento individual
-    // que tenha o atributo 'data-message_to'.
-    const allChatPanels = document.querySelectorAll('section.chat .attendance[data-message_to]');
+async function loadTemplatesFromStorage() {
+    return new Promise((resolve) => {
+        // 1. Pega o nome do atendente logado no storage da extensão.
+        chrome.storage.local.get('atendenteAtual', async ({ atendenteAtual }) => {
+            if (!atendenteAtual) {
+                console.log("ATI Extensão: Nenhum atendente definido.");
+                if (typeof showNotification === 'function') {
+                    showNotification("ATI: Faça o login no painel para carregar seus modelos.", true, 5000);
+                }
+                resolve([]);
+                return;
+            }
 
-    // Itera sobre cada painel encontrado para verificar qual está visível.
-    for (const panel of allChatPanels) {
-        const style = window.getComputedStyle(panel);
-        
-        // A condição para ser o "ativo" é simplesmente estar visível na tela.
-        if (style.display !== 'none' && style.visibility !== 'hidden' && panel.offsetHeight > 0) {
-            // Encontramos o painel ativo! Retornamos ele imediatamente.
-            // No seu HTML, o painel da "Heglaia" vai passar aqui, e o da "Valeria" não.
-            return panel; 
-        }
-    }
+            console.log(`ATI Extensão: Carregando modelos para: ${atendenteAtual}`);
+            try {
+                // 2. Tenta buscar simultaneamente as respostas e os modelos de O.S. do Firebase.
+                const [quickReplies, osTemplates] = await Promise.all([
+                    fetchTemplatesFromFirebase(atendenteAtual, 'respostas'),
+                    fetchTemplatesFromFirebase(atendenteAtual, 'modelos_os')
+                ]);
 
-    // Se, por algum motivo, nenhum chat ativo for encontrado, retorna nulo.
-    return null;
-}
+                // 3. Junta os resultados, garantindo que sejam arrays válidos.
+                const allTemplates = (quickReplies || []).concat(osTemplates || []);
+                const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
 
-function findActiveChatHeader() {
-    const activeAttendance = findActiveAttendanceElement();
-    return activeAttendance ? activeAttendance.querySelector('header') : null;
-}
+                // 4. Salva os templates frescos no cache local para uso offline.
+                await chrome.storage.local.set({ cachedOsTemplates: validTemplates });
+                console.log(`ATI Extensão: ${validTemplates.length} modelos de '${atendenteAtual}' carregados do Firebase.`);
+                resolve(validTemplates);
 
-function findActiveChatBody() {
-    const activeAttendance = findActiveAttendanceElement();
-    return activeAttendance ? activeAttendance.querySelector('.messages') : null;
-}
-
-function processDynamicPlaceholders(text) {
-    if (typeof text !== 'string') return '';
-    const now = new Date();
-    const hour = now.getHours();
-    let saudacao = '';
-    let despedida = '';
-    if (hour >= 5 && hour < 12) {
-        saudacao = 'Bom dia';
-        despedida = 'Tenha uma excelente manhã';
-    } else if (hour >= 12 && hour < 18) {
-        saudacao = 'Boa tarde';
-        despedida = 'Tenha uma excelente tarde';
-    } else {
-        saudacao = 'Boa noite';
-        despedida = 'Tenha uma excelente noite';
-    }
-    let processedText = text.replace(/\[SAUDACAO\]/gi, saudacao);
-    processedText = processedText.replace(/\[DESPEDIDA\]/gi, despedida);
-    return processedText;
+            } catch (error) {
+                // 5. Se o Firebase falhar, usa os últimos dados salvos no cache como fallback.
+                console.error("ATI Extensão: Falha ao carregar do Firebase. Usando cache.", error);
+                chrome.storage.local.get('cachedOsTemplates', (cache) => {
+                    const cachedValidTemplates = cache.cachedOsTemplates || [];
+                    console.log(`ATI Extensão: ${cachedValidTemplates.length} modelos carregados do cache como fallback.`);
+                    resolve(cachedValidTemplates);
+                });
+            }
+        });
+    });
 }
 
-// ===================================================================================
-// ## INÍCIO DA CORREÇÃO ##
-// ===================================================================================
+// -------------------------------------------------------------------
+// SEÇÃO: PROCESSAMENTO DE DADOS DO CHAT
+// -------------------------------------------------------------------
 
 /**
- * Coleta APENAS o texto principal das mensagens, ignorando lixo de UI e replies.
- * @param {HTMLElement} rootElement O contêiner de mensagens (div.messages).
+ * Coleta o texto principal das mensagens no chat, ignorando o conteúdo de citações (replies).
+ * @param {HTMLElement} rootElement - O contêiner de mensagens (ex: div.messages ou div#attendanceMessages).
  * @returns {string[]} Um array com os textos limpos de cada mensagem.
  */
 function collectTextFromMessages(rootElement) {
     const texts = [];
     if (!rootElement) return texts;
 
-    // Seleciona todos os blocos de mensagem visíveis
-    const messageItems = rootElement.querySelectorAll('.item');
+    const messageItems = rootElement.querySelectorAll('.item, div[id^="message-"]'); // Funciona em V1 e V2
+
     messageItems.forEach(item => {
-        const contentDiv = item.querySelector('.content.message_content');
+        const contentDiv = item.querySelector('.content.message_content, .w-full.relative.shadow-md');
         if (contentDiv) {
-            // Pega todos os parágrafos (<p>) que são filhos DIRETOS do 'content'.
-            // Isso inteligentemente ignora os parágrafos que estão dentro de uma citação (div.reply).
+            // Pega apenas os parágrafos <p> que são filhos diretos do contêiner de conteúdo.
+            // Isso efetivamente ignora os <p> dentro de uma div de "reply".
             const directMessageParagraphs = Array.from(contentDiv.children).filter(child => child.tagName === 'P');
-            
+
             if (directMessageParagraphs.length > 0) {
                 const messageText = directMessageParagraphs.map(p => p.textContent.trim()).join(' ');
                 texts.push(messageText);
             }
         }
     });
-
-    console.log("Textos coletados de forma limpa:", texts); // Log para depuração
+    console.log("ATI Extensão: Textos coletados de forma limpa:", texts);
     return texts;
 }
 
+/**
+ * Encontra o último CPF ou CNPJ válido dentro de um array de textos.
+ * Ignora números que pareçam ser de boletos ou códigos de barras.
+ * @param {string[]} allTexts - Array com os textos das mensagens do chat.
+ * @returns {string|null} O último CPF/CNPJ válido encontrado, ou nulo.
+ */
 function findCPF(allTexts) {
     const cpfCnpjRegex = /\b(\d{11}|\d{14})\b/g;
     const validMatches = [];
     const blacklist = ['código de barras', 'boleto', 'fatura', 'pix', 'linha digitável'];
+
     for (const text of allTexts) {
-        // Converte para minúsculas ANTES de verificar a blacklist
         const lowerCaseText = text.toLowerCase();
-        
+        // Se a mensagem contém palavras da blacklist, pula para a próxima.
         if (blacklist.some(keyword => lowerCaseText.includes(keyword))) {
             continue;
         }
@@ -164,42 +117,19 @@ function findCPF(allTexts) {
             }
         }
     }
-
-    // Retorna o último CPF/CNPJ válido encontrado no chat
+    // Retorna o último documento válido encontrado.
     return validMatches.length > 0 ? validMatches[validMatches.length - 1] : null;
 }
 
-// ===================================================================================
-// ## FIM DA CORREÇÃO ##
-// ===================================================================================
+// -------------------------------------------------------------------
+// SEÇÃO: VALIDAÇÃO DE DADOS (CPF E CNPJ)
+// -------------------------------------------------------------------
 
-
-function extractDataFromHeader(headerElement) {
-    let firstName = "", phoneNumber = "";
-    if (headerElement) {
-        let nameElement = headerElement.querySelector('.client_name');
-        let phoneElement = headerElement.querySelector('.client_user');
-        if (nameElement) firstName = (nameElement.textContent || "").trim().split(' ')[0].toUpperCase();
-        if (phoneElement) {
-            const phoneDigits = (phoneElement.textContent || "").replace(/\D/g, '');
-            if (phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)) {
-                const ddd = phoneDigits.substring(2, 4);
-                const number = phoneDigits.substring(4);
-                const part1 = number.length === 9 ? number.slice(0, 5) : number.slice(0, 4);
-                const part2 = number.length === 9 ? number.slice(5) : number.slice(4);
-                phoneNumber = `${ddd} ${part1}-${part2}`;
-            } else if (phoneDigits.length === 10 || phoneDigits.length === 11) {
-                const ddd = phoneDigits.substring(0, 2);
-                const number = phoneDigits.substring(2);
-                const part1 = number.length === 9 ? number.slice(0, 5) : number.slice(0, 4);
-                const part2 = number.length === 9 ? number.slice(5) : number.slice(4);
-                phoneNumber = `${ddd} ${part1}-${part2}`;
-            }
-        }
-    }
-    return { firstName, phoneNumber };
-}
-
+/**
+ * Valida um número de CPF.
+ * @param {string} cpf - O CPF a ser validado.
+ * @returns {boolean} - True se o CPF for válido, false caso contrário.
+ */
 function isValidCPF(cpf) {
     if (typeof cpf !== 'string') return false;
     cpf = cpf.replace(/[^\d]/g, '');
@@ -217,6 +147,11 @@ function isValidCPF(cpf) {
     return true;
 }
 
+/**
+ * Valida um número de CNPJ.
+ * @param {string} cnpj - O CNPJ a ser validado.
+ * @returns {boolean} - True se o CNPJ for válido, false caso contrário.
+ */
 function isValidCNPJ(cnpj) {
     if (typeof cnpj !== 'string') return false;
     cnpj = cnpj.replace(/[^\d]/g, '');
@@ -245,51 +180,105 @@ function isValidCNPJ(cnpj) {
     return true;
 }
 
-function extractClientChatAfterAssignment(chatContainerElement) {
-    const assignmentKeyword = "atendimento atribuído ao atendente";
-    let assignmentMessageFound = false;
-    const clientTexts = [];
-    if (!chatContainerElement) return [];
-    const allMessageItems = Array.from(chatContainerElement.querySelectorAll('.item'));
-    for (const item of allMessageItems) {
-        const itemText = item.textContent.toLowerCase();
-        if (!assignmentMessageFound && itemText.includes(assignmentKeyword)) {
-            assignmentMessageFound = true;
-            continue;
-        }
-        if (assignmentMessageFound) {
-            if (!item.classList.contains('sent')) {
-                clientTexts.push(item.textContent.trim());
-            }
-        }
-    }
-    return clientTexts;
-}
+// -------------------------------------------------------------------
+// SEÇÃO: COMUNICAÇÃO E MANIPULAÇÃO DE TEXTO
+// -------------------------------------------------------------------
+
 /**
- * [NOVO] Armazena os dados necessários para o background script abrir o SGP.
- * @param {string} cpfCnpj O CPF ou CNPJ do cliente.
- * @param {string} osText O texto da Ordem de Serviço para o clipboard do SGP.
+ * Substitui placeholders dinâmicos em um texto (ex: [SAUDACAO]) pelo valor correspondente.
+ * @param {string} text - O texto do template a ser processado.
+ * @returns {string} - O texto com os placeholders substituídos.
  */
-async function storeDataForSgp(cpfCnpj, osText) {
-  try {
-    await chrome.storage.local.set({
-      cpfCnpj: cpfCnpj,
-      osText: osText
-    });
-    console.log("[Extensão ATI] Dados para o SGP salvos no storage local.");
-  } catch (error) {
-    console.error("[Extensão ATI] Erro ao salvar dados para o SGP.", error);
-  }
+function processDynamicPlaceholders(text) {
+    if (typeof text !== 'string') return '';
+    const now = new Date();
+    const hour = now.getHours();
+    let saudacao = '';
+    let despedida = '';
+
+    if (hour >= 5 && hour < 12) {
+        saudacao = 'Bom dia';
+        despedida = 'Tenha uma excelente manhã';
+    } else if (hour >= 12 && hour < 18) {
+        saudacao = 'Boa tarde';
+        despedida = 'Tenha uma excelente tarde';
+    } else {
+        saudacao = 'Boa noite';
+        despedida = 'Tenha uma excelente noite';
+    }
+
+    let processedText = text.replace(/\[SAUDACAO\]/gi, saudacao);
+    processedText = processedText.replace(/\[DESPEDIDA\]/gi, despedida);
+    return processedText;
 }
 
-function injectCSS(filePath) {
-    const cssFileId = 'extension-styles';
-    if (document.getElementById(cssFileId)) return;
-    const link = document.createElement('link');
-    link.id = cssFileId;
-    link.rel = 'stylesheet';
-    link.type = 'text/css';
-    link.href = chrome.runtime.getURL(filePath);
-    (document.head || document.documentElement).appendChild(link);
-    console.log("ATI Extensão: Arquivo de estilo injetado com sucesso.");
+// -------------------------------------------------------------------
+// SEÇÃO: MANIPULAÇÃO DE UI (ELEMENTOS VISUAIS)
+// -------------------------------------------------------------------
+
+/**
+ * Carrega as configurações de tema salvas e as aplica como variáveis CSS na página.
+ * Aplica um tema azul padrão caso nenhum tema customizado seja encontrado.
+ */
+function applySiteTheme() {
+    const defaultTheme = {
+        isDarkMode: true,
+        neonBorders: true,
+        iconColor: '#007DFF',
+        borderColor: '#007DFF',
+        textColor: '#E5E5E5',
+    };
+
+    chrome.storage.local.get('atiSiteTheme', ({ atiSiteTheme }) => {
+        const themeToApply = atiSiteTheme || defaultTheme;        
+        const styleId = 'ati-site-theme-styles';
+        let styleTag = document.getElementById(styleId);
+
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = styleId;
+            (document.head || document.documentElement).appendChild(styleTag);
+        }
+
+        // Funções auxiliares para manipulação de cores
+        const getLuminance = (hex) => {
+            if (!hex || hex.length < 4) return 0;
+            hex = hex.replace("#", "");
+            const r = parseInt(hex.substring(0, 2), 16) / 255, g = parseInt(hex.substring(2, 4), 16) / 255, b = parseInt(hex.substring(4, 6), 16) / 255;
+            const a = [r, g, b].map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+            return 0.2126 * a[0] + 0.7152 * a[1] + 0.0722 * a[2];
+        };
+        const lightenColor = (hex, percent) => {
+            hex = hex.replace("#", "");
+            const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
+            const increase = percent / 100;
+            return `#${Math.min(255,Math.round(r+(255-r)*increase)).toString(16).padStart(2,'0')}${Math.min(255,Math.round(g+(255-g)*increase)).toString(16).padStart(2,'0')}${Math.min(255,Math.round(b+(255-b)*increase)).toString(16).padStart(2,'0')}`;
+        };
+        const hexToRgba = (hex, alpha) => {
+            hex = hex.replace("#", "");
+            const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        };
+        
+        const contrastColorForButtons = getLuminance(themeToApply.borderColor) > 0.5 ? '#111111' : '#FFFFFF';
+
+        styleTag.textContent = `
+            :root {
+                --theme-font-primary: 'Orbitron', sans-serif;
+                --theme-font-secondary: Arial, sans-serif;
+                --theme-card-bg: ${themeToApply.isDarkMode ? '#2d2d2d' : '#ffffff'};
+                --theme-text-primary: ${themeToApply.isDarkMode ? '#e0e0e0' : '#333333'};
+                --theme-text-secondary: ${themeToApply.isDarkMode ? '#a0a0a0' : '#666666'};
+                --theme-border-color: ${themeToApply.borderColor};
+                --theme-heading-color: ${themeToApply.textColor};
+                --theme-button-bg: ${themeToApply.borderColor};
+                --theme-button-text: ${contrastColorForButtons};
+                --theme-button-hover-bg: ${lightenColor(themeToApply.borderColor, 20)};
+                --theme-success-color: #22C55E;
+                --theme-error-color: #EF4444;
+                --theme-info-color: #3B82F6;
+                --theme-shadow-color: ${hexToRgba(themeToApply.borderColor, themeToApply.neonBorders ? 0.4 : 0)};
+            }
+        `;
+    });
 }

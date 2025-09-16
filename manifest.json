@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ATI - Auxiliar de Atendimentos",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Copia dados, sugere e cria Ordens de Serviço a partir do chat.",
   
   "permissions": [
@@ -18,6 +18,7 @@
     "https://*.firebaseapp.com/",
     "https://*.googleapis.com/*",
     "https://sgp.atiinternet.com.br/*",
+    "http://201.158.20.35:8000/*",
     "https://gist.githubusercontent.com/*" 
   ],
 
@@ -48,33 +49,17 @@
   "content_scripts": [
     {
       "matches": [
-        "https://www.chatmix.com.br/app/atendimento"
-      ],
-      "js": [
-        "firebase-config.js",
-        "scripts/logic.js",
-        "scripts/utils.js",
-        "scripts/v1.js",
-        "content.js"
-      ],
-      "css": [
-        "css/common.css",
-        "css/v1.css"
-      ]
-    },    
-    {
-      "matches": [
         "https://www.chatmix.com.br/v2/chat*"
       ],
       "js": [
         "firebase-config.js",
         "scripts/logic.js",
         "scripts/utils.js",
-        "scripts/v2.js"
+        "scripts/chatmix.js"
       ],
       "css": [
         "css/common.css",
-        "css/v2.css"
+        "css/chatmix.css"
       ]
     },
     {
@@ -91,7 +76,6 @@
         "https://sgp.atiinternet.com.br/admin/atendimento/cliente/*/ocorrencia/add/"
       ],
       "js": [
-        "libs/jquery.min.js",
         "scripts/sgp.js",
         "scripts/utils.js"
       ],

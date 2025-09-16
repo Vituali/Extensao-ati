@@ -120,6 +120,27 @@
     font-size: 15px; transition: background-color 0.2s;
     font-family: var(--theme-font-primary);
 }
+.ati-os-modal .main-btn--sgp { 
+    background-color: var(--theme-info-color, #3B82F6); 
+    color: white; 
+}
+.ati-os-modal .main-btn--sgp:hover { 
+    background-color: #3172d8;
+}
+.ati-os-modal .modal-textarea {
+    width: 100%; 
+    min-height: 120px; 
+    padding: 10px;
+    border: 1px solid var(--theme-border-color, #555);
+    border-radius: 5px; 
+    margin-bottom: 20px; 
+    font-size: 14px; 
+    box-sizing: border-box;
+    resize: vertical; 
+    background-color: var(--theme-card-bg, #3a3a3a);
+    color: var(--theme-text-primary, #e0e0e0);
+    text-transform: uppercase; /* ADICIONE ESTA LINHA */
+}
 .ati-os-modal .main-btn--confirm { background-color: var(--theme-success-color, #28a745); color: white; }
 .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
 .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }

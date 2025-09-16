@@ -1,5 +1,6 @@
-// --- sgp.js (VERSÃO 100% COMPLETA E FINAL) ---
-// Inclui preenchimento automático, fallback manual, seletor de contrato e verificação de O.S. pendente.
+// ===================================================================
+// == SGP.JS - (VERSÃO FINAL COM LEITURA CORRETA DO ENDEREÇO)       ==
+// ===================================================================
 
 const ATTENDANTS = {
     'VICTORH': '99',
@@ -8,8 +9,6 @@ const ATTENDANTS = {
     'IGORMAGALHAES': '68',
     'JEFFERSON': '62',
 };
-
-// ------------------------------------
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
@@ -28,135 +27,122 @@ const setValueWithDelay = (selector, value, delay) => {
     return new Promise(resolve => {
         setTimeout(() => {
             try {
-                const element = $(selector);
-                if (element.length > 0) {
-                    element.val(value);
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.value = value;
                     const event = new Event('change', { bubbles: true });
-                    element[0].dispatchEvent(event);
+                    element.dispatchEvent(event);
                 }
                 resolve();
             } catch (error) {
-                console.error(`[Extensão ATI] Erro ao preencher o campo ${selector}:`, error);
+                console.error(`ATI Extensão: Erro ao preencher o campo ${selector}:`, error);
                 resolve();
             }
         }, delay);
     });
 };
 
-function injectContractModalStyles() {
-    const styleId = 'ati-contract-modal-styles';
-    if (document.getElementById(styleId)) return;
+/**
+ * [CORRIGIDO] Pede ao usuário que selecione um contrato, buscando o endereço de INSTALAÇÃO correto.
+ * @param {Array<{id: string, text: string}>} contracts - Lista de contratos disponíveis.
+ * @returns {Promise<string>} - O ID do contrato selecionado.
+ */
+async function promptForContractSelection(contracts) {
+    // ## INÍCIO DA CORREÇÃO ##
+    // A lógica agora faz 2 chamadas: 1 para pegar o serviço, e outra para pegar o endereço do serviço.
+    const contractDetailPromises = contracts.map(async (contract) => {
+        try {
+            // Passo 1: Buscar a lista de serviços para o contrato.
+            const servicesResponse = await fetch(`/admin/clientecontrato/servico/list/ajax/?contrato_id=${contract.id}`);
+            const services = await servicesResponse.json();
 
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = `
-        .contract-options-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .contract-option {
-            display: block;
-            padding: 12px;
-            border: 1px solid var(--theme-border-color, #555);
-            border-radius: 5px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-        .contract-option:hover {
-            background-color: var(--theme-button-hover-bg, #0056b3);
-        }
-        .contract-option input[type="radio"] {
-            margin-right: 10px;
-        }
-    `;
-    document.head.appendChild(style);
-}
+            let enrichedText = contract.text; // Começa com o texto original
 
-function promptForContractSelection(contracts) {
-    return new Promise((resolve, reject) => {
-        if (document.getElementById('ati-contract-modal')) return reject('Modal já está aberto.');
+            // Se houver serviços, pega o primeiro e busca seus detalhes.
+            if (services && services.length > 0) {
+                const primaryServiceId = services[0].id;
+                const detailsResponse = await fetch(`/admin/atendimento/ocorrencia/servico/detalhe/ajax/?servico_id=${primaryServiceId}&contrato_id=${contract.id}`);
+                const details = await detailsResponse.json();
 
-        injectContractModalStyles();
-
-        const modalBackdrop = document.createElement('div');
-        modalBackdrop.id = 'ati-contract-modal';
-        modalBackdrop.className = 'modal-backdrop ati-os-modal';
-
-        const contractOptionsHTML = contracts.map((contract, index) => `
-            <label class="contract-option">
-                <input type="radio" name="selected_contract" value="${contract.id}" ${index === 0 ? 'checked' : ''}>
-                <span>${contract.text}</span>
-            </label>
-        `).join('');
-
-        modalBackdrop.innerHTML = `
-            <div class="modal-content" style="max-width: 550px;">
-                <div class="modal-header">
-                    <h3>Selecione o Contrato Correto</h3>
-                </div>
-                <div class="modal-body">
-                    <p>Este cliente possui múltiplos contratos ativos. Por favor, escolha qual deles deve ser associado a esta ocorrência.</p>
-                    <div class="contract-options-container">${contractOptionsHTML}</div>
-                </div>
-                <div class="modal-footer">
-                    <button id="cancel-contract-selection" class="main-btn main-btn--cancel">Cancelar</button>
-                    <button id="confirm-contract-selection" class="main-btn main-btn--confirm">Confirmar</button>
-                </div>
-            </div>
-        `;
-        
-        document.body.appendChild(modalBackdrop);
-
-        const confirmBtn = document.getElementById('confirm-contract-selection');
-        const cancelBtn = document.getElementById('cancel-contract-selection');
-
-        const closeModal = () => modalBackdrop.remove();
-
-        cancelBtn.onclick = () => {
-            closeModal();
-            reject('Seleção de contrato cancelada.');
-        };
-
-        confirmBtn.onclick = () => {
-            const selectedRadio = document.querySelector('input[name="selected_contract"]:checked');
-            if (selectedRadio) {
-                closeModal();
-                resolve(selectedRadio.value);
-            } else {
-                showNotification('Por favor, selecione um contrato.', true);
+                // Se os detalhes contiverem o endereço de instalação, adicione-o.
+                if (details && details.length > 0 && details[0] && details[0].end_instalacao) {
+                    const address = details[0].end_instalacao;
+                    enrichedText += ` <br><b>Endereço:</b> ${address}`;
+                }
             }
-        };
+            
+            return { id: contract.id, text: enrichedText };
+
+        } catch (error) {
+            console.error(`ATI Extensão: Falha ao buscar detalhes para o contrato ${contract.id}`, error);
+            // Em caso de erro, retorna o texto original sem endereço.
+            return { ...contract };
+        }
     });
+
+    // Espera todas as buscas terminarem.
+    const enrichedContracts = await Promise.all(contractDetailPromises);
+    // ## FIM DA CORREÇÃO ##
+
+    const contractOptionsHTML = enrichedContracts.map((contract, index) => `
+        <label class="template-btn" style="display: block; text-align: left; margin-bottom: 8px; padding: 10px;">
+            <input type="radio" name="selected_contract" value="${contract.id}" ${index === 0 ? 'checked' : ''}>
+            <span style="vertical-align: middle;">${contract.text}</span>
+        </label>
+    `).join('');
+
+    const modalConfig = {
+        title: 'Selecione o Contrato Correto',
+        bodyHTML: `
+            <p>Este cliente possui múltiplos contratos ativos. Por favor, escolha qual deles deve ser associado a esta ocorrência.</p>
+            <div style="margin-top: 15px;">${contractOptionsHTML}</div>
+        `,
+        footerButtons: [
+            { text: 'Cancelar', className: 'main-btn--cancel', value: 'cancel' },
+            { text: 'Confirmar', className: 'main-btn--confirm', value: 'confirm' }
+        ]
+    };
+    
+    try {
+        const result = await createModal(modalConfig);
+        if (result.action === 'confirm' && result.data.selectedValue) {
+            return result.data.selectedValue;
+        } else {
+            throw new Error('Nenhum contrato foi selecionado.');
+        }
+    } catch (error) {
+        throw new Error('Seleção de contrato cancelada pelo usuário.');
+    }
 }
+
 
 async function fillSgpForm(osText) {
     try {
         if (!osText) {
-            return showNotification('[Extensão ATI] Nenhum texto de O.S. para preencher.', true);
+            return showNotification('ATI Extensão: Nenhum texto de O.S. para preencher.', true);
         }
         const upperCaseText = osText.toUpperCase();
-        console.log('[Extensão ATI] Iniciando preenchimento do formulário...');
+        console.log('ATI Extensão: Iniciando preenchimento do formulário...');
 
         const selectedAttendant = localStorage.getItem('sgp_selected_attendant');
         if (selectedAttendant) {
             await setValueWithDelay('#id_responsavel', selectedAttendant, 50);
         }
 
-        const contractOptions = $('#id_clientecontrato option').filter(function() {
-            return $(this).val() !== '' && !$(this).text().toUpperCase().includes('CANCELADO');
+        const allContractOptions = Array.from(document.querySelectorAll('#id_clientecontrato option'));
+        const activeContracts = allContractOptions.filter(option => {
+            return option.value !== '' && !option.textContent.toUpperCase().includes('CANCELADO');
         });
 
-        if (contractOptions.length === 1) {
-            await setValueWithDelay('#id_clientecontrato', contractOptions.val(), 50);
-        } else if (contractOptions.length > 1) {
-            const contracts = contractOptions.map(function() { return { id: $(this).val(), text: $(this).text() }; }).get();
+        if (activeContracts.length === 1) {
+            await setValueWithDelay('#id_clientecontrato', activeContracts[0].value, 50);
+        } else if (activeContracts.length > 1) {
+            const contractsForModal = activeContracts.map(option => ({ id: option.value, text: option.textContent }));
             try {
-                const selectedContractId = await promptForContractSelection(contracts);
+                const selectedContractId = await promptForContractSelection(contractsForModal);
                 await setValueWithDelay('#id_clientecontrato', selectedContractId, 50);
             } catch (errorMsg) {
-                showNotification(errorMsg, true);
+                showNotification(errorMsg.message, true);
                 return;
             }
         }
@@ -164,27 +150,32 @@ async function fillSgpForm(osText) {
         await setValueWithDelay('#id_setor', '2', 100);
         await setValueWithDelay('#id_metodo', '3', 100);
         await setValueWithDelay('#id_status', '1', 100);
-        $('#id_data_agendamento').val(getCurrentFormattedDateTime());
-        $('#id_os').prop('checked', false);
-        $('#id_conteudo').val(upperCaseText);
+        
+        document.querySelector('#id_data_agendamento').value = getCurrentFormattedDateTime();
+        
+        const osCheckbox = document.querySelector('#id_os');
+        if (osCheckbox) osCheckbox.checked = false;
+
+        document.querySelector('#id_conteudo').value = upperCaseText;
 
         const isComprovante = upperCaseText.includes('ENVIO DE COMPROVANTE');
         const isPromessa = upperCaseText.includes('PROMESSA DE PAGAMENTO');
         const isSemAcesso = upperCaseText.includes('CLIENTE SEM ACESSO');
         const isLento = upperCaseText.includes('CLIENTE RELATA LENTIDÃO');
+
         if (isComprovante) await setValueWithDelay('#id_tipo', '42', 100);
         else if (isPromessa) await setValueWithDelay('#id_tipo', '41', 100);
         else if (isSemAcesso) await setValueWithDelay('#id_tipo', '1', 100);
         else if (isLento) await setValueWithDelay('#id_tipo', '3', 100);
 
-        showNotification('[Extensão ATI] Formulário preenchido com sucesso!');
+        showNotification('ATI Extensão: Formulário preenchido com sucesso!');
     } catch (error) {
-        console.error('[Extensão ATI] Erro ao preencher formulário SGP:', error);
+        console.error('ATI Extensão: Erro ao preencher formulário SGP:', error);
     }
 }
 
 async function handleManualFillClick() {
-    console.log('[Extensão ATI] Botão de preenchimento manual clicado.');
+    console.log('ATI Extensão: Botão de preenchimento manual clicado.');
     try {
         const clipboardText = await navigator.clipboard.readText();
         if (!clipboardText) {
@@ -193,7 +184,7 @@ async function handleManualFillClick() {
         }
         fillSgpForm(clipboardText);
     } catch (error) {
-        console.error('[Extensão ATI] Falha ao ler da área de transferência:', error);
+        console.error('ATI Extensão: Falha ao ler da área de transferência:', error);
         showNotification('Falha ao ler da área de transferência. Verifique as permissões do navegador.', true);
     }
 }
@@ -212,15 +203,6 @@ function injectSgpButton() {
         submitButton.parentNode.insertBefore(customButton, submitButton.nextSibling);
     }
 }
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    if (request.action === "fillSgpForm") {
-        console.log("[Extensão ATI] Preenchendo via mensagem (aba já aberta).");
-        fillSgpForm(request.osText);
-        sendResponse({ status: "Formulário preenchido." });
-    }
-    return true;
-});
 
 function injectAttendantSelector() {
     if (document.getElementById('attendant-selector-container')) return;
@@ -258,17 +240,27 @@ function injectAttendantSelector() {
 async function initializeSgpScript() {
     injectSgpButton();
     injectAttendantSelector();
-    
     const data = await chrome.storage.local.get('pendingOsText');
     if (data.pendingOsText) {
-        console.log("[Extensão ATI] Texto de O.S. pendente encontrado. Preenchendo formulário.");
+        console.log("ATI Extensão: Texto de O.S. pendente encontrado. Preenchendo formulário.");
         await fillSgpForm(data.pendingOsText);
         chrome.storage.local.remove('pendingOsText');
     }
 }
 
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "fillSgpForm") {
+        console.log("ATI Extensão: Preenchendo via mensagem (aba já aberta).");
+        fillSgpForm(request.osText);
+        sendResponse({ status: "Formulário preenchido." });
+    }
+    return true;
+});
+
 const readyCheckInterval = setInterval(() => {
-    if (document.getElementById('btacao') && document.getElementById('header-right')) {
+    const submitBtn = document.getElementById('btacao');
+    const headerRight = document.getElementById('header-right');
+    if (submitBtn && headerRight) {
         clearInterval(readyCheckInterval);
         initializeSgpScript();
     }

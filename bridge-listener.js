@@ -1,10 +1,10 @@
 // bridge-listener.js
-console.log('[Extensão ATI] Listener da ponte INICIADO.');
+console.log('ATI Extensão: Listener da ponte INICIADO.');
 
 const s = document.createElement('script');
 s.src = chrome.runtime.getURL('bridge-injected.js');
 (document.head || document.documentElement).appendChild(s);
-s.onload = () => console.log('[Extensão ATI] Script injetado com sucesso no site.');
+s.onload = () => console.log('ATI Extensão: Script injetado com sucesso no site.');
 
 window.addEventListener('message', (event) => {
     // Verificação de segurança básica
@@ -14,7 +14,7 @@ window.addEventListener('message', (event) => {
     switch (event.data.type) {
         case 'ATI_ATTENDANT_UPDATE': {
             const attendantKey = event.data.attendant;
-            console.log(`[Extensão ATI] MENSAGEM RECEBIDA: Atendente é '${attendantKey}'.`);
+            console.log(`ATI Extensão: MENSAGEM RECEBIDA: Atendente é '${attendantKey}'.`);
             chrome.storage.local.set({ atendenteAtual: attendantKey }, () => {
                 // Avisa o background para recarregar templates em outras abas do Chatmix
                 chrome.runtime.sendMessage({ action: "userChanged" });
@@ -23,7 +23,7 @@ window.addEventListener('message', (event) => {
         }
         case 'ATI_THEME_UPDATE': {
             const themeSettings = event.data.themeSettings;
-            console.log('[Extensão ATI] MENSAGEM RECEBIDA: Tema atualizado.');
+            console.log('ATI Extensão: MENSAGEM RECEBIDA: Tema atualizado.');
             // Salva as configurações de tema para a extensão usar
             chrome.storage.local.set({ atiSiteTheme: themeSettings }, () => {
                 // [MODIFICADO] Avisa o background que o tema mudou para que ele avise as outras abas

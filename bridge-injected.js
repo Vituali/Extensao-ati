@@ -1,4 +1,4 @@
-console.log("[Site] Ponte injetada INICIADA. Monitorando login...");
+console.log("Site ATI: Ponte injetada INICIADA. Monitorando login...");
 
 let lastKnownAttendant = null;
 
@@ -7,7 +7,7 @@ function notifyExtension(currentAttendant) {
     type: "ATI_ATTENDANT_UPDATE",
     attendant: currentAttendant
   }, "*");
-  console.log(`[Site] Mudança detectada: ${currentAttendant}`);
+  console.log(`Site ATI: Mudança detectada: ${currentAttendant}`);
 }
 
 function checkAttendant() {

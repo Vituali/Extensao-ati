@@ -1,5 +1,3 @@
-// v2.js - Versão Final Corrigida (v14)
-
 const SELECTORS = {
     chatHeader: 'div.z-10 header',
     chatBody: 'div#attendanceMessages',
@@ -205,25 +203,20 @@ function copyCPFFromChatV2() {
 function showOSModalV2() {
     const chatBody = findActiveChatBodyV2();
     const chatHeader = findActiveChatHeaderV2();
-
     if (!chatBody || !chatHeader) {
         showNotification("Nenhum chat ativo para criar O.S.", true);
         return;
     }
 
-    // [MODIFICADO] Coleta todos os dados necessários antes de chamar o modal
     const allMessageTexts = collectTextFromMessagesV2(chatBody);
     const cpfCnpj = findCPF(allMessageTexts);
     const { fullName, phoneNumber } = extractDataFromHeaderV2(chatHeader);
-    
     showOSModal({
-        modalId: 'osModalV2',
         chatHeader: chatHeader,
         chatBody: chatBody,
         allTemplates: osTemplates,
         extractDataFn: extractDataFromHeaderV2,
         extractChatFn: collectTextFromMessagesV2,
-        // [NOVO] Passa um objeto com os dados do cliente
         clientData: {
             cpfCnpj: cpfCnpj,
             fullName: fullName,
@@ -250,13 +243,7 @@ async function handleOpenInSgpClick() {
     const { fullName, phoneNumber } = extractDataFromHeaderV2(chatHeader);
     let osText = `${phoneNumber || ''} ${fullName || ''} | `.trim();
     osText = processDynamicPlaceholders(osText).toUpperCase();
-    
-    console.log('[SGP Debug] Dados capturados da página:', { 
-        cpfCnpj: cpfCnpj, 
-        fullName: fullName, 
-        phoneNumber: phoneNumber 
-    });
-    
+        
     try {
         await chrome.storage.local.set({ 
             cpfCnpj: cpfCnpj, 

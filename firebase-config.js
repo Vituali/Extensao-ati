@@ -38,7 +38,7 @@ async function fetchTemplatesFromFirebase(username, dataType = 'respostas') {
     // A API REST retorna os dados no formato correto (array de objetos)
     return data;
   } catch (error) {
-    console.error(`[Extensão ATI] Falha ao buscar dados para '${username}' em '${dataType}'.`, error);
+    console.error(`ATI Extensão: Falha ao buscar dados para '${username}' em '${dataType}'.`, error);
     throw error;
   }
 }
