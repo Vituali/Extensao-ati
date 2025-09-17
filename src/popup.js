@@ -60,18 +60,18 @@ document.addEventListener('DOMContentLoaded', () => {
      * Unifica os dois arrays (os e replies) em um só antes de salvar.
      */
     const saveAllTemplates = () => {
-        // O campo 'category' é necessário para a extensão principal saber como filtrar.
-        const osWithCategory = dataStore.os.map(t => ({ ...t, category: t.subCategory || 'Técnico' }));
-        const repliesWithCategory = dataStore.replies.map(t => ({ ...t, category: 'quick_reply' }));
+        const allTemplatesToSave = [
+            ...dataStore.os.map(t => ({ ...t, category: t.subCategory || 'Técnico' })),
+            ...dataStore.replies.map(t => ({ ...t, category: 'quick_reply' }))
+        ];
 
-        const allTemplatesToSave = [...osWithCategory, ...repliesWithCategory];
-
-    chrome.storage.local.set({ osTemplates: allTemplatesToSave }, () => {
-        console.log('ATI Extensão: Modelos salvos. Notificando o background...');
-        chrome.runtime.sendMessage({ action: "templatesUpdated" }); 
-        loadAndRenderTemplates();
-    });
-
+        chrome.storage.local.set({ osTemplates: allTemplatesToSave }, () => {
+            console.log('ATI Extensão: Modelos salvos...');
+            chrome.runtime.sendMessage({ action: "templatesUpdated" }); 
+            loadAndRenderTemplates();
+            resetForm(); // <-- Mova o resetForm para cá!
+        });
+    };
     // -----------------------------------------------------------------------------
     // FUNÇÕES DE RENDERIZAÇÃO E UI (INTERFACE DO USUÁRIO)
     // -----------------------------------------------------------------------------
@@ -195,7 +195,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         saveAllTemplates();
-        resetForm();
     });
     
     /**

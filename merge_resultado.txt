@@ -1,0 +1,2034 @@
+
+
+// --- .gitattributes ---
+
+# Auto detect text files and perform LF normalization
+* text=auto
+
+
+// --- .gitignore ---
+
+node_modules
+dist
+
+
+// --- package.json ---
+
+{
+  "name": "extensao-ati",
+  "version": "1.0.0",
+  "description": "",
+  "main": "background.js",
+  "scripts": {
+    "build": "npm run build:main && npm run build:chatmix && npm run build:sgp",
+    "build:main": "vite build",
+    "build:chatmix": "vite build --config vite.chatmix.config.js",
+    "build:sgp": "vite build --config vite.sgp.config.js",
+    "dev": "echo 'Para desenvolver, abra 3 terminais e execute os comandos: npm run dev:main, npm run dev:chatmix e npm run dev:sgp'",
+    "dev:main": "npm run build:main -- --watch",
+    "dev:chatmix": "npm run build:chatmix -- --watch",
+    "dev:sgp": "npm run build:sgp -- --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vituali/Extensao-ati.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vituali/Extensao-ati/issues"
+  },
+  "homepage": "https://github.com/Vituali/Extensao-ati#readme",
+  "devDependencies": {
+    "vite": "^7.1.5"
+  },
+  "dependencies": {
+    "firebase": "^12.2.1"
+  }
+}
+
+
+// --- public\css\chatmix.css ---
+
+/* =================================================================== */
+/* == V2.CSS (REVISADO PARA USAR TEMA DO SITE) - ATI EXTENSÃO       == */
+/* =================================================================== */
+
+/* --- Contêiner de Ações --- */
+#actionsContainerV2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr; /* Cria uma grade de 2 colunas */
+    gap: 10px;
+    /* [MODIFICADO] Apenas padding vertical para respeitar o alinhamento da sidebar */
+    padding: 12px 0;
+    margin: 18px; 
+    margin-bottom: 0px;
+    z-index: 9999;
+    width: 90%; /* Garante que o contêiner ocupe toda a largura disponível */
+}
+
+/* --- Estilo Base dos Botões (inspirado no site) --- */
+#actionsContainerV2 .action-btn {
+    background-color: var(--theme-button-bg, #007DFF); /* Cor de segurança AZUL */
+    color: var(--theme-button-text, #FFFFFF);
+    border: 1px solid transparent;
+    font-family: var(--theme-font-primary, 'Orbitron', sans-serif);
+    font-size: 14px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 5px; /* Padding vertical maior que horizontal */
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    border-radius: 5px; /* Bordas arredondadas como no site */
+    box-shadow: 0 0 10px 0px var(--theme-shadow-color, rgba(0,125,255,0.4)), 0 2px 4px rgba(0,0,0,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    word-break: break-word; /* Evita que o texto quebre o layout */
+    min-width: 0; /* Permite que o flexbox encolha o item se necessário */
+}
+
+/* --- Efeito de Hover (passar o mouse) --- */
+#actionsContainerV2 .action-btn:hover {
+    background-color: var(--theme-button-hover-bg, #3399ff);
+    transform: translateY(-2px);
+    box-shadow: 0 0 15px 2px var(--theme-shadow-color, rgba(0,125,255,0.5)), 0 4px 8px rgba(0,0,0,0.3);
+}
+
+/* --- Garante que o último botão (se for ímpar) ocupe a largura total --- */
+#actionsContainerV2 .action-btn:last-child:nth-child(odd) {
+    grid-column: span 2;
+}
+
+/* --- Feedback Visual (Sucesso/Erro) --- */
+#actionsContainerV2 .action-btn--success {
+    background-color: var(--theme-success-color, #28a745) !important;
+    color: white !important;
+    box-shadow: 0 0 15px var(--theme-success-color, #28a745) !important;
+}
+
+#actionsContainerV2 .action-btn--error {
+    background-color: var(--theme-error-color, #dc3545) !important;
+    color: white !important;
+    box-shadow: 0 0 15px var(--theme-error-color, #dc3545) !important;
+}
+
+#actionsContainerV2 .action-btn--success span,
+#actionsContainerV2 .action-btn--error span {
+    display: inline-block;
+    animation: pop-in 0.3s;
+}
+
+@keyframes pop-in {
+    0% { transform: scale(0.5); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+/* --- Respostas Rápidas --- */
+#atiQuickRepliesContainerV2.quick-replies-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 8px 12px 8px;
+    margin: 12px 8px 0 8px;
+}
+#atiQuickRepliesContainerV2 .qr-btn {
+    padding: 6px 14px;
+    border-radius: 16px;
+    border: 1px solid var(--theme-border-color, #555);
+    background-color: transparent;
+    color: var(--theme-text-primary, #ccc);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+#atiQuickRepliesContainerV2 .qr-btn:hover {
+    background-color: var(--theme-button-bg, #007DFF);
+    color: var(--theme-button-text, #FFF);
+    border-color: transparent;
+}
+#atiQuickRepliesContainerV2 .qr-btn--back {
+    font-weight: bold;
+}
+
+
+
+// --- public\css\common.css ---
+
+/* =================================================================== */
+/* == ARQUIVO DE ESTILOS COMUNS (REVISADO) - ATI EXTENSÃO           == */
+/* =================================================================== */
+
+/* --- Notificações --- */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    z-index: 10000;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-family: var(--theme-font-secondary);
+}
+.notification.success { background-color: var(--theme-success-color, #22C55E); }
+.notification.error { background-color: var(--theme-error-color, #EF4444); }
+
+
+/* --- Modal de O.S. Customizado (Agora usa variáveis de tema) --- */
+.ati-os-modal.modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+.ati-os-modal .modal-content {
+    background: var(--theme-card-bg, #2d2d2d); 
+    padding: 25px; 
+    border-radius: 8px;
+    border: 1px solid var(--theme-border-color, #555);
+    box-shadow: 0 0 20px 2px var(--theme-shadow-color), 0 5px 15px rgba(0, 0, 0, 0.5); 
+    width: 90%; max-width: 650px;
+    max-height: 90vh; overflow-y: auto; 
+    color: var(--theme-text-primary, #e0e0e0);
+    display: flex;
+    flex-direction: column;
+    font-family: var(--theme-font-secondary);
+}
+.ati-os-modal .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    border-bottom: 1px solid var(--theme-border-color, #444); 
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.ati-os-modal h3 { 
+    margin: 0; 
+    color: var(--theme-heading-color, #0095ff); 
+    font-size: 1.25rem;
+    font-family: var(--theme-font-primary);
+}
+.ati-os-modal .modal-close-btn { 
+    background: none; border: none; font-size: 1.8rem;
+    color: var(--theme-text-secondary, #888); 
+    cursor: pointer; 
+}
+.ati-os-modal .modal-close-btn:hover { color: var(--theme-heading-color, #fff); }
+
+.ati-os-modal .modal-body label {
+    display: block; margin-bottom: 8px;
+    font-weight: bold;
+    color: var(--theme-text-secondary, #aaa); 
+    font-size: 0.9rem;
+}
+.ati-os-modal .modal-textarea {
+    width: 100%; min-height: 120px; padding: 10px;
+    border: 1px solid var(--theme-border-color, #555);
+    border-radius: 5px; margin-bottom: 20px; font-size: 14px; box-sizing: border-box;
+    resize: vertical; 
+    background-color: var(--theme-card-bg, #3a3a3a); 
+    color: var(--theme-text-primary, #e0e0e0);
+}
+.ati-os-modal .modal-suggestion {
+    background-color: rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--theme-button-bg, #007bff);
+    border-radius: 5px; padding: 15px; margin-bottom: 20px;
+}
+.ati-os-modal .modal-category-title {
+    flex-basis: 100%; margin-top: 15px; margin-bottom: 10px; 
+    color: var(--theme-heading-color, #0095ff);
+    font-size: 1rem; border-bottom: 1px dashed var(--theme-border-color, #555);
+    padding-bottom: 5px;
+}
+.ati-os-modal .modal-btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+
+.ati-os-modal .template-btn {
+    padding: 8px 16px; 
+    border: 1px solid var(--theme-border-color, #555); 
+    border-radius: 20px;
+    background-color: transparent; 
+    color: var(--theme-text-primary, #ccc);
+    cursor: pointer; font-size: 13px;
+    transition: all 0.2s;
+}
+.ati-os-modal .template-btn:hover { 
+    background-color: var(--theme-button-bg, #555); 
+    color: var(--theme-button-text, white); 
+    border-color: transparent; 
+}
+.ati-os-modal .template-btn--suggestion { 
+    background-color: var(--theme-button-bg, #007bff); 
+    color: var(--theme-button-text, white); 
+    border-color: transparent; 
+}
+.ati-os-modal .template-btn--suggestion:hover { 
+    background-color: var(--theme-button-hover-bg, #0056b3); 
+}
+.ati-os-modal .modal-footer {
+    display: flex; justify-content: flex-end; gap: 10px;
+    margin-top: 20px; border-top: 1px solid var(--theme-border-color, #444); padding-top: 20px;
+    margin-bottom: 0 !important;
+}
+.ati-os-modal .main-btn {
+    padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
+    font-weight: bold;
+    font-size: 15px; transition: background-color 0.2s;
+    font-family: var(--theme-font-primary);
+}
+.ati-os-modal .main-btn--sgp { 
+    background-color: var(--theme-info-color, #3B82F6); 
+    color: white; 
+}
+.ati-os-modal .main-btn--sgp:hover { 
+    background-color: #3172d8;
+}
+.ati-os-modal .modal-textarea {
+    width: 100%; 
+    min-height: 120px; 
+    padding: 10px;
+    border: 1px solid var(--theme-border-color, #555);
+    border-radius: 5px; 
+    margin-bottom: 20px; 
+    font-size: 14px; 
+    box-sizing: border-box;
+    resize: vertical; 
+    background-color: var(--theme-card-bg, #3a3a3a);
+    color: var(--theme-text-primary, #e0e0e0);
+    text-transform: uppercase; /* ADICIONE ESTA LINHA */
+}
+.ati-os-modal .main-btn--confirm { background-color: var(--theme-success-color, #28a745); color: white; }
+.ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
+.ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
+.ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
+
+// --- public\manifest.json ---
+
+{
+  "manifest_version": 3,
+  "name": "ATI - Auxiliar de Atendimentos",
+  "version": "1.1",
+  "description": "Copia dados, sugere e cria Ordens de Serviço a partir do chat.",
+  
+  "permissions": [
+    "storage",
+    "activeTab",
+    "clipboardWrite",
+    "clipboardRead",
+    "tabs",
+    "commands",
+    "notifications",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://www.chatmix.com.br/*",
+    "https://vituali.github.io/ATI/",
+    "https://sgp.atiinternet.com.br/*",
+    "https://*.firebaseio.com/*",
+    "https://*.firebaseapp.com/*",
+    "https://*.googleapis.com/*",
+    "http://201.158.20.35:8000/*",
+    "https://gist.githubusercontent.com/*" 
+  ],
+
+  "icons": {
+    "16": "icones/icone_16.png",
+    "48": "icones/icone_48.png",
+    "128": "icones/icone_128.png"
+  },
+
+  "action": {
+    "default_title": "Abrir Painel ATI",
+    "default_icon": {
+      "16": "icones/icone_16.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "commands": {
+    "copy-data": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+C",
+        "mac": "Command+Shift+C"
+      },
+      "description": "Copia os dados do cliente ativo."
+    }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "scripts/chatmix.js",
+        "scripts/sgp.js",
+        "bridge-injected.js",
+        "css/*.css",
+        "icones/*.png"
+      ],
+      "matches": [
+        "https://*.chatmix.com.br/*",
+        "https://sgp.atiinternet.com.br/*",
+        "https://vituali.github.io/*"
+      ]
+    }
+  ]
+}
+
+// --- Run build.bat ---
+
+npm run build
+
+// --- src\background.js ---
+
+// --- Configuração do Firebase ---
+const firebaseConfig = {
+    apiKey: "AIzaSyB5wO0x-7NFmh6waMKzWzRew4ezfYOmYBI",
+    authDomain: "site-ati-75d83.firebaseapp.com",
+    databaseURL: "https://site-ati-75d83-default-rtdb.firebaseio.com/",
+    projectId: "site-ati-75d83"
+};
+
+// --- Funções de Lógica do Firebase (Usando API REST) ---
+async function fetchTemplatesFromFirebaseRest(username, dataType) {
+  if (!username) {
+    console.log(`ATI Extensão: Não é possível buscar '${dataType}' sem um atendente logado.`);
+    return null;
+  }
+  const dbURL = firebaseConfig.databaseURL;
+  const url = `${dbURL}${dataType}/${username}.json`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Erro de rede: ${response.statusText}`);
+    return await response.json();
+  } catch (error) {
+    console.error(`ATI Extensão: Falha ao buscar dados para '${username}' em '${dataType}'.`, error);
+    throw error;
+  }
+}
+
+async function loadAndCacheTemplates() {
+    const { atendenteAtual } = await chrome.storage.local.get('atendenteAtual');
+    if (!atendenteAtual) {
+        const { cachedOsTemplates } = await chrome.storage.local.get('cachedOsTemplates');
+        return cachedOsTemplates || [];
+    }
+    console.log(`ATI Extensão: Carregando modelos para: ${atendenteAtual}`);
+    try {
+        const [quickRepliesData, osTemplatesData] = await Promise.all([
+            fetchTemplatesFromFirebaseRest(atendenteAtual, 'respostas'),
+            fetchTemplatesFromFirebaseRest(atendenteAtual, 'modelos_os')
+        ]);
+
+        const quickReplies = quickRepliesData ? Object.values(quickRepliesData) : [];
+        const osTemplates = osTemplatesData ? Object.values(osTemplatesData) : [];
+
+        // [CORRIGIDO] Preserva as categorias dos modelos de O.S. e apenas tagueia as respostas rápidas.
+        const allTemplates = [
+            ...quickReplies.map(t => ({ ...t, category: 'quick_reply' })),
+            ...osTemplates // Mantém os modelos de O.S. como vêm do Firebase
+        ];
+
+        const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
+        await chrome.storage.local.set({ cachedOsTemplates: validTemplates });
+        console.log(`ATI Extensão: ${validTemplates.length} modelos de '${atendenteAtual}' carregados e salvos em cache.`);
+        return validTemplates;
+
+    } catch (error) {
+        console.error("ATI Extensão: Falha crítica ao carregar do Firebase. Usando cache como fallback.", error);
+        const { cachedOsTemplates } = await chrome.storage.local.get('cachedOsTemplates');
+        return cachedOsTemplates || [];
+    }
+}
+
+
+// --- Lógica do SGP (Restaurada da versão funcional) ---
+let isSearchRunning = false;
+// ... (O restante do código do SGP e dos listeners continua o mesmo da versão anterior)
+// Apenas a função loadAndCacheTemplates acima precisava ser alterada. O resto do arquivo pode permanecer igual.
+async function performLoginCheck(baseUrl) {
+    try {
+        const response = await fetch(`${baseUrl}/admin/`, {
+            credentials: 'include',
+            signal: AbortSignal.timeout(4000)
+        });
+        const isLoggedIn = !response.url.includes('/accounts/login');
+        console.log(`ATI Extensão: [SGP Check] Verificação em ${baseUrl}. Logado: ${isLoggedIn}`);
+        return { isLoggedIn, baseUrl };
+    } catch (error) {
+        console.error(`ATI Extensão: [SGP Check] Falha ao verificar ${baseUrl}.`, error.message);
+        throw error;
+    }
+}
+async function checkSgpStatus() {
+    const dnsUrl = 'https://sgp.atiinternet.com.br';
+    const ipUrl = 'http://201.158.20.35:8000';
+    try {
+        const dnsStatus = await performLoginCheck(dnsUrl);
+        if (dnsStatus.isLoggedIn) return dnsStatus;
+    } catch (e) {
+        console.warn('ATI Extensão: [SGP Fallback] Conexão com DNS falhou. Tentando IP...');
+    }
+    try {
+        const ipStatus = await performLoginCheck(ipUrl);
+        if (ipStatus.isLoggedIn) return ipStatus;
+    } catch (e) {
+        console.error('ATI Extensão: [SGP Fallback] Conexão com IP também falhou.');
+    }
+    return { isLoggedIn: false, baseUrl: dnsUrl };
+}
+async function getSgpStatusWithCache() {
+    const today = new Date().toISOString().slice(0, 10);
+    const cache = await chrome.storage.local.get('sgp_status_cache');
+    if (cache.sgp_status_cache && cache.sgp_status_cache.date === today && cache.sgp_status_cache.isLoggedIn) {
+        try {
+            const cachedStatus = await performLoginCheck(cache.sgp_status_cache.baseUrl);
+            if (cachedStatus.isLoggedIn) return cachedStatus;
+        } catch (e) {
+            console.warn('ATI Extensão: [SGP Cache] A verificação do cache falhou. Realizando verificação completa.');
+        }
+    }
+    const currentStatus = await checkSgpStatus();
+    if (currentStatus.isLoggedIn) {
+        await chrome.storage.local.set({ sgp_status_cache: { ...currentStatus, date: today } });
+    } else {
+        await chrome.storage.local.remove('sgp_status_cache');
+    }
+    return currentStatus;
+}
+async function openOrFocusTab(url, titleQuery) {
+    const urlPattern = `*://*/*admin*`;
+    const tabs = await chrome.tabs.query({ url: urlPattern });
+    const matchingTab = tabs.find(tab => tab.title && tab.title.includes(titleQuery));
+    if (matchingTab) {
+        await chrome.tabs.update(matchingTab.id, { url, active: true });
+        await chrome.windows.update(matchingTab.windowId, { focused: true });
+        return matchingTab;
+    } else {
+        return await chrome.tabs.create({ url });
+    }
+}
+async function searchClientInSgp() {
+    if (isSearchRunning) return;
+    isSearchRunning = true;
+    try {
+        const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+        if (!isLoggedIn) {
+            const loginUrl = `${baseUrl}/accounts/login/?next=/admin/`;
+            await openOrFocusTab(loginUrl, "SGP");
+            return;
+        }
+        const { cpfCnpj, fullName, phoneNumber } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
+        const executeSearch = async (url) => {
+            try {
+                const response = await fetch(url, { credentials: 'include' });
+                const data = await response.json();
+                return (data && data.length > 0) ? data[0] : null;
+            } catch (error) { return null; }
+        };
+        let client = null;
+        if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
+        if (!client && fullName) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
+        if (!client && phoneNumber) {
+            const cleanPhone = phoneNumber.replace(/\D/g, '').substring(2);
+            client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
+        }
+        if (client) {
+            const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
+            const clientPageUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
+            await openOrFocusTab(clientPageUrl, titleQuery);
+        } else {
+            await openOrFocusTab(`${baseUrl}/admin/`, "SGP");
+        }
+    } finally {
+        isSearchRunning = false;
+    }
+}
+async function createOccurrenceInSgp() {
+    if (isSearchRunning) return;
+    isSearchRunning = true;
+    try {
+        const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+        if (!isLoggedIn) {
+            const loginUrl = `${baseUrl}/accounts/login/?next=/admin/`;
+            await openOrFocusTab(loginUrl, "SGP");
+            return;
+        }
+        const { cpfCnpj, fullName, phoneNumber, osText } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber", "osText"]);
+        const executeSearch = async (url) => {
+            try {
+                const response = await fetch(url, { credentials: 'include' });
+                const data = await response.json();
+                return (data && data.length > 0) ? data[0] : null;
+            } catch (error) { return null; }
+        };
+        let client = null;
+        if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
+        if (!client && fullName) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
+        if (!client && phoneNumber) {
+            const cleanPhone = phoneNumber.replace(/\D/g, '').substring(2);
+            client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
+        }
+        if (client) {
+            const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
+            const occurrencePageUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
+            await chrome.storage.local.set({ pendingOsText: osText });
+            await openOrFocusTab(occurrencePageUrl, titleQuery);
+        } else {
+            await openOrFocusTab(`${baseUrl}/admin/`, "SGP");
+        }
+    } finally {
+        isSearchRunning = false;
+    }
+}
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log("ATI Extensão: Mensagem recebida no background:", request);
+    switch (request.action) {
+        case "getTemplates":
+            loadAndCacheTemplates().then(sendResponse);
+            return true;
+        case "userChanged":
+        case "templatesUpdated":
+            loadAndCacheTemplates().then(() => {
+                chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
+                    tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: "reloadTemplates" }).catch(() => { }));
+                });
+            });
+            break;
+        case "themeUpdated":
+            chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
+                tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: "applyTheme" }).catch(() => { }));
+            });
+            break;
+        case "createOccurrenceInSgp":
+            createOccurrenceInSgp();
+            break;
+        case "openInSgp":
+            searchClientInSgp();
+            break;
+    }
+    return true;
+});
+chrome.action.onClicked.addListener((tab) => {
+    const panelUrl = "https://vituali.github.io/ATI/";
+    chrome.tabs.query({ url: panelUrl }, (tabs) => {
+        if (tabs.length > 0) {
+            chrome.tabs.highlight({ windowId: tabs[0].windowId, tabs: tabs[0].index });
+            chrome.windows.update(tabs[0].windowId, { focused: true });
+        } else {
+            chrome.tabs.create({ url: panelUrl });
+        }
+    });
+});
+chrome.commands.onCommand.addListener(async (command) => {
+    if (command === "copy-data") {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (tab) {
+                chrome.tabs.sendMessage(tab.id, { action: "executeCopy" });
+            }
+        } catch (e) {
+            console.log("ATI Extensão: Atalho pressionado em aba não compatível.");
+        }
+    }
+});
+const INJECTION_RULES = {
+    CHATMIX: {
+        matches: ["https://www.chatmix.com.br/v2/chat*"],
+        js: ["scripts/chatmix.js"],
+        css: ["css/common.css", "css/chatmix.css"],
+    },
+    SGP: {
+        matches: ["https://sgp.atiinternet.com.br/admin/atendimento/cliente/*/ocorrencia/add/"],
+        js: ["scripts/sgp.js"],
+        css: ["css/common.css"],
+    },
+    BRIDGE: {
+        matches: ["https://vituali.github.io/ATI/"],
+        js: ["bridge-listener.js"],
+        css: [],
+    }
+};
+async function injectFiles(tabId, rule) {
+    try {
+        if (rule.css && rule.css.length > 0) {
+            await chrome.scripting.insertCSS({ target: { tabId }, files: rule.css });
+        }
+        if (rule.js && rule.js.length > 0) {
+            await chrome.scripting.executeScript({ target: { tabId }, files: rule.js });
+        }
+    } catch (err) {
+        console.error(`ATI Extensão: Falha ao injetar script em ${tabId} (${err.message})`);
+    }
+}
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url) {
+        for (const key in INJECTION_RULES) {
+            const rule = INJECTION_RULES[key];
+            const urlMatches = rule.matches.some(pattern => {
+                const regexPattern = pattern.replace(/\*/g, '.*');
+                return new RegExp(regexPattern).test(tab.url);
+            });
+            if (urlMatches) {
+                console.log(`ATI Extensão: Injetando script '${key}' na aba ${tabId}`);
+                injectFiles(tabId, rule);
+            }
+        }
+    }
+});
+
+// --- src\bridge-injected.js ---
+
+console.log("Site ATI: Ponte injetada INICIADA. Monitorando login...");
+
+let lastKnownAttendant = null;
+
+function notifyExtension(currentAttendant) {
+  window.postMessage({
+    type: "ATI_ATTENDANT_UPDATE",
+    attendant: currentAttendant
+  }, "*");
+  console.log(`Site ATI: Mudança detectada: ${currentAttendant}`);
+}
+
+function checkAttendant() {
+  const currentAttendant = localStorage.getItem("atendenteAtual");
+  if (currentAttendant !== lastKnownAttendant) {
+    lastKnownAttendant = currentAttendant;
+    notifyExtension(currentAttendant);
+  }
+}
+
+// em vez de martelar com setInterval
+window.addEventListener("storage", (event) => {
+  if (event.key === "atendenteAtual") {
+    checkAttendant();
+  }
+});
+
+// fallback (se o site mudar via script sem evento "storage")
+setInterval(checkAttendant, 5000);
+
+
+// --- src\bridge-listener.js ---
+
+// bridge-listener.js
+console.log('ATI Extensão: Listener da ponte INICIADO.');
+
+const s = document.createElement('script');
+s.src = chrome.runtime.getURL('bridge-injected.js');
+(document.head || document.documentElement).appendChild(s);
+s.onload = () => console.log('ATI Extensão: Script injetado com sucesso no site.');
+
+window.addEventListener('message', (event) => {
+    // Verificação de segurança básica
+    if (event.source !== window || !event.data.type) return;
+
+    // Roteador de mensagens
+    switch (event.data.type) {
+        case 'ATI_ATTENDANT_UPDATE': {
+            const attendantKey = event.data.attendant;
+            console.log(`ATI Extensão: MENSAGEM RECEBIDA: Atendente é '${attendantKey}'.`);
+            chrome.storage.local.set({ atendenteAtual: attendantKey }, () => {
+                // Avisa o background para recarregar templates em outras abas do Chatmix
+                chrome.runtime.sendMessage({ action: "userChanged" });
+            });
+            break;
+        }
+        case 'ATI_THEME_UPDATE': {
+            const themeSettings = event.data.themeSettings;
+            console.log('ATI Extensão: MENSAGEM RECEBIDA: Tema atualizado.');
+            // Salva as configurações de tema para a extensão usar
+            chrome.storage.local.set({ atiSiteTheme: themeSettings }, () => {
+                // [MODIFICADO] Avisa o background que o tema mudou para que ele avise as outras abas
+                chrome.runtime.sendMessage({ action: "themeUpdated" });
+            });
+            break;
+        }
+    }
+}, false);
+
+
+// --- src\firebase-config.js ---
+
+// src/firebase-config.js
+
+// Importa as funções necessárias do Firebase SDK
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, get } from "firebase/database";
+
+// ATENÇÃO: Substitua pelas suas credenciais reais do Firebase
+const firebaseConfig = {
+    apiKey: "AIzaSyB5wO0x-7NFmh6waMKzWzRew4ezfYOmYBI",
+    authDomain: "site-ati-75d83.firebaseapp.com",
+    databaseURL: "https://site-ati-75d83-default-rtdb.firebaseio.com/",
+    projectId: "site-ati-75d83"
+};
+
+// Inicializa o Firebase
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+
+/**
+ * Busca templates do Firebase Realtime Database.
+ * @param {string} attendant - O nome do atendente.
+ * @param {string} node - O "nó" do banco de dados (ex: 'respostas' ou 'modelos_os').
+ * @returns {Promise<Array>} - Uma promessa que resolve para uma lista de templates.
+ */
+async function fetchTemplatesFromFirebase(attendant, node) {
+  if (!attendant || !node) {
+    console.error("Atendente ou nó não fornecido para busca no Firebase.");
+    return [];
+  }
+
+  // Cria uma referência para o local dos dados no banco
+  const dbRef = ref(database, `atendentes/${attendant}/${node}`);
+
+  try {
+    const snapshot = await get(dbRef);
+    if (snapshot.exists()) {
+      // Converte o objeto retornado pelo Firebase em uma lista (array)
+      const data = snapshot.val();
+      return Object.values(data);
+    } else {
+      console.log(`Nenhum dado encontrado em 'atendentes/${attendant}/${node}'`);
+      return [];
+    }
+  } catch (error) {
+    console.error("Erro ao buscar dados do Firebase:", error);
+    throw error; // Propaga o erro para que o .catch no chatmix.js funcione
+  }
+}
+
+// --- src\popup.js ---
+
+// ===================================================================================
+// == POPUP.JS - PAINEL DE GERENCIAMENTO DE MODELOS (REORGANIZADO)                  ==
+// ===================================================================================
+
+document.addEventListener('DOMContentLoaded', () => {
+
+    // -----------------------------------------------------------------------------
+    // SELETORES DE ELEMENTOS DA PÁGINA (DOM)
+    // -----------------------------------------------------------------------------
+    // Manter todos os seletores aqui facilita a manutenção se o HTML mudar.
+    const ui = {
+        tabButtons: document.querySelectorAll('.tab-button'),
+        tabContents: document.querySelectorAll('.tab-content'),
+        osListContainer: document.getElementById('os-list-container'),
+        replyListContainer: document.getElementById('reply-list-container'),
+        saveButton: document.getElementById('save-button'),
+        cancelButton: document.getElementById('cancel-button'),
+        formTitle: document.getElementById('form-title'),
+        titleInput: document.getElementById('title'),
+        textInput: document.getElementById('text'),
+        subCategoryInput: document.getElementById('subcategory'),
+        editIndexInput: document.getElementById('edit-index'),
+        editTypeInput: document.getElementById('edit-type'), // Novo campo oculto
+        exportBtn: document.getElementById('export-btn'),
+        importFile: document.getElementById('import-file')
+    };
+
+    // -----------------------------------------------------------------------------
+    // ESTRUTURA DE DADOS PRINCIPAL
+    // -----------------------------------------------------------------------------
+    // dataStore armazena os templates separados por tipo, facilitando o acesso.
+    let dataStore = {
+        os: [],
+        replies: []
+    };
+
+    // -----------------------------------------------------------------------------
+    // FUNÇÕES DE DADOS (CARREGAR E SALVAR)
+    // -----------------------------------------------------------------------------
+
+    /**
+     * Carrega todos os templates do chrome.storage, separa-os por tipo
+     * e chama a função para renderizá-los na tela.
+     */
+    const loadAndRenderTemplates = async () => {
+        const data = await chrome.storage.local.get('osTemplates');
+        const allTemplates = data.osTemplates || [];
+
+        // Separa os templates nos arrays correspondentes do dataStore
+        dataStore.os = allTemplates.filter(t => t.category !== 'quick_reply');
+        dataStore.replies = allTemplates.filter(t => t.category === 'quick_reply');
+
+        // Renderiza as listas nas respectivas abas
+        renderTemplateList(dataStore.os, ui.osListContainer, 'os');
+        renderTemplateList(dataStore.replies, ui.replyListContainer, 'replies');
+    };
+
+    /**
+     * Salva o estado atual do dataStore (todos os templates) no chrome.storage.
+     * Unifica os dois arrays (os e replies) em um só antes de salvar.
+     */
+    const saveAllTemplates = () => {
+        const allTemplatesToSave = [
+            ...dataStore.os.map(t => ({ ...t, category: t.subCategory || 'Técnico' })),
+            ...dataStore.replies.map(t => ({ ...t, category: 'quick_reply' }))
+        ];
+
+        chrome.storage.local.set({ osTemplates: allTemplatesToSave }, () => {
+            console.log('ATI Extensão: Modelos salvos...');
+            chrome.runtime.sendMessage({ action: "templatesUpdated" }); 
+            loadAndRenderTemplates();
+            resetForm(); // <-- Mova o resetForm para cá!
+        });
+    };
+    // -----------------------------------------------------------------------------
+    // FUNÇÕES DE RENDERIZAÇÃO E UI (INTERFACE DO USUÁRIO)
+    // -----------------------------------------------------------------------------
+
+    /**
+     * Renderiza uma lista de templates em um contêiner específico.
+     * Esta função é genérica e funciona para qualquer tipo de template.
+     * @param {Array} templates - A lista de templates a ser renderizada.
+     * @param {HTMLElement} containerElement - O elemento HTML onde a lista será injetada.
+     * @param {string} dataType - O tipo de dado ('os' ou 'replies'), para os botões.
+     */
+    const renderTemplateList = (templates, containerElement, dataType) => {
+        containerElement.innerHTML = ''; // Limpa a lista antes de renderizar
+
+        if (templates.length === 0) {
+            containerElement.innerHTML = '<p class="empty-message">Nenhum modelo cadastrado.</p>';
+            return;
+        }
+
+        templates.forEach((template, index) => {
+            const itemHTML = `
+                <div class="template-item">
+                    <div class="template-details">
+                        <strong>${template.title}</strong>
+                        <small>Subcategoria: ${template.subCategory || 'Geral'}</small>
+                    </div>
+                    <div class="template-actions">
+                        <button class="edit" data-type="${dataType}" data-index="${index}">Editar</button>
+                        <button class="delete" data-type="${dataType}" data-index="${index}">Excluir</button>
+                    </div>
+                </div>`;
+            containerElement.innerHTML += itemHTML;
+        });
+    };
+
+    /**
+     * Limpa o formulário e o restaura para o estado de "Adicionar Novo".
+     */
+    const resetForm = () => {
+        ui.formTitle.textContent = 'Adicionar Novo Modelo';
+        ui.saveButton.textContent = 'Salvar Novo Modelo';
+        ui.titleInput.value = '';
+        ui.textInput.value = '';
+        ui.subCategoryInput.value = '';
+        ui.editIndexInput.value = '';
+        ui.editTypeInput.value = ''; // Limpa o tipo
+        ui.cancelButton.style.display = 'none';
+        ui.titleInput.focus();
+    };
+
+    /**
+     * Preenche o formulário para edição com os dados de um template existente.
+     * @param {string} type - O tipo de template ('os' ou 'replies').
+     * @param {number} index - O índice do template no array do dataStore.
+     */
+    const populateFormForEdit = (type, index) => {
+        const template = dataStore[type][index];
+        if (!template) return;
+
+        ui.formTitle.textContent = 'Editando Modelo';
+        ui.saveButton.textContent = 'Salvar Alterações';
+        ui.titleInput.value = template.title;
+        ui.textInput.value = template.text;
+        ui.subCategoryInput.value = template.subCategory || '';
+        ui.editIndexInput.value = index;
+        ui.editTypeInput.value = type; // Guarda o tipo que está sendo editado
+        ui.cancelButton.style.display = 'inline-block';
+        ui.titleInput.focus();
+    };
+
+
+    // -----------------------------------------------------------------------------
+    // EVENT LISTENERS (AÇÕES DO USUÁRIO)
+    // -----------------------------------------------------------------------------
+
+    /**
+     * Listener para os botões das abas (Modelos O.S. / Respostas Rápidas).
+     */
+    ui.tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            ui.tabButtons.forEach(btn => btn.classList.remove('active'));
+            ui.tabContents.forEach(content => content.classList.remove('active'));
+
+            button.classList.add('active');
+            const tabId = button.getAttribute('data-tab');
+            document.getElementById(`${tabId}-content`).classList.add('active');
+            
+            // Limpa o formulário ao trocar de aba para evitar edições confusas
+            resetForm();
+        });
+    });
+
+    /**
+     * Listener para o botão SALVAR (funciona tanto para criar quanto para editar).
+     */
+    ui.saveButton.addEventListener('click', () => {
+        const title = ui.titleInput.value.trim();
+        const text = ui.textInput.value.trim();
+
+        if (!title || !text) {
+            alert('Título e Texto são obrigatórios.');
+            return;
+        }
+
+        const newTemplate = {
+            title,
+            text,
+            subCategory: ui.subCategoryInput.value.trim()
+        };
+
+        const editIndex = ui.editIndexInput.value;
+        const editType = ui.editTypeInput.value;
+
+        if (editIndex !== '' && editType) {
+            // Modo Edição: Atualiza o item existente
+            dataStore[editType][parseInt(editIndex)] = newTemplate;
+        } else {
+            // Modo Criação: Adiciona ao tipo da aba ativa
+            const activeTab = document.querySelector('.tab-button.active').getAttribute('data-tab');
+            dataStore[activeTab].push(newTemplate);
+        }
+
+        saveAllTemplates();
+    });
+    
+    /**
+     * Listener para os botões EDITAR e EXCLUIR.
+     * Usa a técnica de "event delegation" para monitorar cliques no body.
+     */
+    document.body.addEventListener('click', (e) => {
+        const target = e.target;
+        // Ignora cliques que não sejam nos botões de ação
+        if (!target.matches('.edit, .delete')) return;
+
+        const type = target.getAttribute('data-type');
+        const index = parseInt(target.getAttribute('data-index'));
+
+        if (target.classList.contains('delete')) {
+            const templateTitle = dataStore[type][index].title;
+            if (confirm(`Tem certeza que deseja excluir o modelo "${templateTitle}"?`)) {
+                dataStore[type].splice(index, 1);
+                saveAllTemplates();
+            }
+        } else if (target.classList.contains('edit')) {
+            populateFormForEdit(type, index);
+        }
+    });
+    
+    /**
+     * Listener para o botão CANCELAR do formulário.
+     */
+    ui.cancelButton.addEventListener('click', resetForm);
+
+    /**
+     * Listener para o botão de EXPORTAR.
+     */
+    ui.exportBtn.addEventListener('click', () => {
+        const allTemplates = [...dataStore.os, ...dataStore.replies];
+        if (allTemplates.length === 0) {
+            alert('Não há modelos para exportar.');
+            return;
+        }
+
+        const jsonData = JSON.stringify(allTemplates, null, 4);
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `modelos_ati_backup_${new Date().toISOString().slice(0,10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    /**
+     * Listener para o input de IMPORTAR arquivo.
+     */
+    ui.importFile.addEventListener('change', (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const importedTemplates = JSON.parse(e.target.result);
+                if (!Array.isArray(importedTemplates)) throw new Error("O arquivo não é uma lista válida.");
+                
+                if (confirm('Isso irá SUBSTITUIR todos os seus modelos atuais. Deseja continuar?')) {
+                    // Seta o storage diretamente e depois recarrega
+                    chrome.storage.local.set({ osTemplates: importedTemplates }, () => {
+                        console.log('ATI Extensão: Modelos importados com sucesso.');
+                        loadAndRenderTemplates();
+                    });
+                }
+            } catch (error) {
+                alert('Erro ao ler o arquivo. Certifique-se de que é um JSON válido. ' + error.message);
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = ''; // Limpa o input para permitir importar o mesmo arquivo novamente
+    });
+
+
+    // -----------------------------------------------------------------------------
+    // INICIALIZAÇÃO
+    // -----------------------------------------------------------------------------
+    loadAndRenderTemplates();
+    resetForm();
+});
+
+// --- src\scripts\chatmix.js ---
+
+// =================================================================================
+// == CHATMIX.JS (VERSÃO REESCRITA E CORRIGIDA)                                    ==
+// == Responsável por injetar e controlar a UI dentro do site Chatmix.          ==
+// =================================================================================
+
+import { showNotification, showOSModal } from './utils.js';
+import { findCPF, applySiteTheme, processDynamicPlaceholders } from './logic.js';
+
+// --- Estado Global e Seletores ---
+const SELECTORS = {
+    chatHeader: 'div.z-10 header',
+    chatBody: 'div#attendanceMessages',
+    messageContainer: 'div[id^="message-"]',
+    messageParagraph: 'p.mensagem',
+    sidebar: '.chat_sidebar',
+    quickReplyContainer: '.flex-none.p-4.pb-6',
+    textarea: 'textarea.chat_textarea',
+    messageSentContainer: 'justify-end',
+    messageReceivedContainer: 'justify-start',
+};
+
+let osTemplates = [];
+let persistentObserver;
+
+// --- Funções de Extração de Dados (DOM) ---
+
+function findActiveChatHeader() { return document.querySelector(SELECTORS.chatHeader); }
+function findActiveChatBody() { return document.querySelector(SELECTORS.chatBody); }
+
+// [FUNÇÃO CORRIGIDA] Lógica de formatação do telefone restaurada
+function extractDataFromHeader() {
+    const headerElement = findActiveChatHeader();
+    if (!headerElement) return { firstName: "", fullName: "", phoneNumber: "" };
+
+    const nameElement = headerElement.querySelector('h2.text-base');
+    const phoneElement = headerElement.querySelector('span.text-sm');
+    
+    const fullName = nameElement ? (nameElement.textContent || "").trim() : "";
+    const firstName = fullName ? fullName.split(' ')[0].toUpperCase() : "";
+    
+    let phoneNumber = "";
+    if (phoneElement) {
+        const phoneDigits = (phoneElement.textContent || "").replace(/\D/g, ''); 
+        if (phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)) { 
+            const ddd = phoneDigits.substring(2, 4);
+            const number = phoneDigits.substring(4);
+            phoneNumber = `${ddd} ${number.slice(0, number.length - 4)}-${number.slice(number.length - 4)}`;
+        } else if (phoneDigits.length === 10 || phoneDigits.length === 11) {
+            const ddd = phoneDigits.substring(0, 2);
+            const number = phoneDigits.substring(2);
+            phoneNumber = `${ddd} ${number.slice(0, number.length - 4)}-${number.slice(number.length - 4)}`;
+        } else {
+            phoneNumber = phoneDigits;
+        }
+    }
+
+    return { firstName, fullName, phoneNumber };
+}
+
+function collectTextFromMessages() {
+    const chatBody = findActiveChatBody();
+    if (!chatBody) return [];
+    return Array.from(chatBody.querySelectorAll(SELECTORS.messageParagraph)).map(p => p.textContent.trim());
+}
+
+function extractAndFormatConversation() {
+    const chatBody = findActiveChatBody();
+    if (!chatBody) return "";
+    const allMessageContainers = Array.from(chatBody.querySelectorAll(SELECTORS.messageContainer));
+    const assignmentKeyword = "atendimento atribuído ao atendente";
+    let conversationStarted = false;
+    const relevantTexts = [];
+
+    for (const container of allMessageContainers) {
+        const messageTextElement = container.querySelector(SELECTORS.messageParagraph);
+        if (!messageTextElement) continue;
+        const text = messageTextElement.textContent.trim();
+        if (text.toLowerCase().includes(assignmentKeyword)) {
+            conversationStarted = true;
+            relevantTexts.length = 0;
+            continue;
+        }
+        if (conversationStarted) {
+            const parentDiv = container.querySelector('.justify-start, .justify-end');
+            if (parentDiv) {
+                if (parentDiv.classList.contains(SELECTORS.messageSentContainer)) {
+                     const cleanText = text.replace(/^[A-Z\s]+ disse:\s*/, '').trim();
+                    relevantTexts.push(`ATENDENTE: ${cleanText}`);
+                } else if (parentDiv.classList.contains(SELECTORS.messageReceivedContainer)) {
+                    relevantTexts.push(`CLIENTE: ${text}`);
+                }
+            }
+        }
+    }
+    return relevantTexts.slice(-10).join('\n');
+}
+
+
+// --- Funções de Ação dos Botões ---
+
+function provideButtonFeedback(button, isSuccess) {
+    if (!button) return;
+    const originalContent = button.innerHTML;
+    const originalClasses = button.className;
+    button.innerHTML = isSuccess ? `<span>✔️</span>` : `<span>✖️</span>`;
+    button.classList.add(isSuccess ? 'action-btn--success' : 'action-btn--error');
+    setTimeout(() => {
+        button.innerHTML = originalContent;
+        button.className = originalClasses;
+    }, 1500);
+}
+
+
+function copyContactInfo() {
+    const button = document.getElementById('ati-copy-contact');
+    const { firstName, phoneNumber } = extractDataFromHeader();
+    const contactString = `${phoneNumber || ''} ${firstName || ''} |`.trim();
+    if (contactString.length > 2) {
+        navigator.clipboard.writeText(contactString)
+            .then(() => {
+                showNotification(`Contato copiado: ${contactString}`);
+                provideButtonFeedback(button, true);
+            })
+            .catch(() => {
+                showNotification("Erro ao copiar contato.", true);
+                provideButtonFeedback(button, false);
+            });
+    } else {
+        showNotification("Nome ou telefone não encontrado.", true);
+        provideButtonFeedback(button, false);
+    }
+}
+
+function copyCPFFromChat() {
+    const button = document.getElementById('ati-copy-cpf');
+    const foundCPF = findCPF(collectTextFromMessages());
+    if (foundCPF) {
+        navigator.clipboard.writeText(foundCPF)
+            .then(() => {
+                showNotification(`CPF/CNPJ copiado: ${foundCPF}`);
+                provideButtonFeedback(button, true);
+            })
+            .catch(() => {
+                showNotification("Erro ao copiar CPF!", true);
+                provideButtonFeedback(button, false);
+            });
+    } else {
+        showNotification("Nenhum CPF/CNPJ encontrado no chat!", true);
+        provideButtonFeedback(button, false);
+    }
+}
+
+function openOSModal() {
+    const chatBody = findActiveChatBody();
+    const chatHeader = findActiveChatHeader();
+    if (!chatBody || !chatHeader) return showNotification("Nenhum chat ativo para criar O.S.", true);
+    
+    const clientData = extractDataFromHeader();
+    clientData.cpfCnpj = findCPF(collectTextFromMessages());
+    
+    showOSModal({
+        allTemplates: osTemplates,
+        extractChatFn: collectTextFromMessages,
+        clientData,
+    });
+}
+
+async function openInSgp() {
+    const button = document.getElementById('ati-open-sgp');
+    showNotification("Buscando cliente no SGP...");
+
+    const clientData = extractDataFromHeader();
+    clientData.cpfCnpj = findCPF(collectTextFromMessages());
+    
+    if (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber) {
+        showNotification("Nenhum dado (CPF, Nome ou Telefone) para buscar.", true);
+        provideButtonFeedback(button, false);
+        return;
+    }
+
+    try {
+        await chrome.storage.local.set(clientData);
+        chrome.runtime.sendMessage({ action: "openInSgp" });
+        provideButtonFeedback(button, true);
+    } catch (error) {
+        showNotification("Erro ao iniciar a busca no SGP.", true);
+        provideButtonFeedback(button, false);
+    }
+}
+
+async function handleCopyPromptClick() {
+    const button = document.getElementById('ati-copy-prompt');
+    const conversation = extractAndFormatConversation();
+    if (!conversation) {
+        showNotification("Não há conversa suficiente para gerar um prompt.", true);
+        provideButtonFeedback(button, false);
+        return;
+    }
+    const prompt = `
+Você é um atendente de suporte da empresa 'ATI Internet'.
+Sua resposta deve ser profissional, amigável e resolver o problema do cliente.
+---
+REGRAS IMPORTANTES:
+1. Gere respostas CURTAS e DIRETAS, ideais para um chat.
+2. Se uma explicação for longa, divida-a em 2 mensagens curtas e sequenciais.
+---
+CONVERSA COM O CLIENTE:
+${conversation}
+---
+Sugira a resposta ideal seguindo TODAS as regras:
+    `;
+    try {
+        await navigator.clipboard.writeText(prompt.trim());
+        showNotification("✅ Prompt para IA copiado!", false);
+        provideButtonFeedback(button, true);
+    } catch (error) {
+        showNotification("Falha ao copiar o prompt.", true);
+        provideButtonFeedback(button, false);
+    }
+}
+
+
+// --- Funções de Renderização da UI ---
+
+function insertReplyText(text) {
+    const textarea = document.querySelector(SELECTORS.textarea);
+    if (textarea) {
+        textarea.value = processDynamicPlaceholders(text);
+        textarea.dispatchEvent(new Event('input', { bubbles: true }));
+        textarea.focus();
+    }
+}
+
+function renderReplyUI(container, groupedReplies, activeCategory = null) {
+    container.innerHTML = ''; 
+    if (activeCategory && groupedReplies[activeCategory]) {
+        const backButton = document.createElement('button');
+        backButton.className = 'qr-btn qr-btn--back';
+        backButton.textContent = '↩️ Voltar';
+        backButton.addEventListener('click', (event) => {
+            event.stopPropagation();
+            renderReplyUI(container, groupedReplies, null);
+        });
+        container.appendChild(backButton);
+
+        groupedReplies[activeCategory].forEach(reply => {
+            const button = document.createElement('button');
+            button.className = 'qr-btn';
+            button.textContent = reply.title;
+            button.title = reply.text;
+            button.onclick = () => insertReplyText(reply.text);
+            container.appendChild(button);
+        });
+    } else {
+        Object.keys(groupedReplies).forEach(subCategory => {
+            const button = document.createElement('button');
+            button.className = 'qr-btn qr-btn--category';
+            button.textContent = subCategory;
+            button.addEventListener('click', (event) => {
+                event.stopPropagation();
+                renderReplyUI(container, groupedReplies, subCategory);
+            });
+            container.appendChild(button);
+        });
+    }
+}
+
+function injectUIElements() {
+    const sidebar = document.querySelector(SELECTORS.sidebar);
+    if (sidebar && !document.getElementById('actionsContainerV2')) {
+        const container = document.createElement("div");
+        container.id = "actionsContainerV2";
+        sidebar.appendChild(container);
+        container.innerHTML = `
+            <button class="action-btn" id="ati-copy-contact">👤 Contato</button>
+            <button class="action-btn" id="ati-copy-cpf">📄 CPF</button>
+            <button class="action-btn" id="ati-open-os">📝 O.S</button>
+            <button class="action-btn" id="ati-copy-prompt">🤖 Chat</button>
+            <button class="action-btn" id="ati-open-sgp">↗️ SGP</button>
+        `;
+        document.getElementById('ati-copy-contact').onclick = copyContactInfo;
+        document.getElementById('ati-copy-cpf').onclick = copyCPFFromChat;
+        document.getElementById('ati-open-os').onclick = openOSModal;
+        document.getElementById('ati-copy-prompt').onclick = handleCopyPromptClick;
+        document.getElementById('ati-open-sgp').onclick = openInSgp;
+    }
+
+    const injectionParent = document.querySelector(SELECTORS.quickReplyContainer);
+    if (injectionParent && !document.getElementById('atiQuickRepliesContainerV2')) {
+        const quickReplies = osTemplates.filter(t => t.category === 'quick_reply');
+        if (quickReplies.length > 0) {
+            const repliesByCategory = quickReplies.reduce((acc, reply) => {
+                const key = reply.subCategory || 'Geral';
+                (acc[key] = acc[key] || []).push(reply);
+                return acc;
+            }, {});
+            const buttonContainer = document.createElement('div');
+            buttonContainer.id = 'atiQuickRepliesContainerV2';
+            buttonContainer.className = 'quick-replies-container';
+            injectionParent.prepend(buttonContainer);
+            renderReplyUI(buttonContainer, repliesByCategory, null);
+        }
+    }
+}
+
+async function reloadAndInject() {
+    osTemplates = await new Promise(resolve => {
+        chrome.runtime.sendMessage({ action: "getTemplates" }, response => {
+            resolve(response || []);
+        });
+    });
+
+    document.getElementById('actionsContainerV2')?.remove();
+    document.getElementById('atiQuickRepliesContainerV2')?.remove();
+    injectUIElements();
+}
+
+// --- Ponto de Entrada e Listeners ---
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "reloadTemplates") {
+        console.log("ATI Extensão: Recarregando templates e re-injetando UI.");
+        reloadAndInject();
+        sendResponse({ status: "Templates recarregados." });
+    } else if (request.action === "applyTheme") {
+        console.log("ATI Extensão: Aviso para aplicar tema recebido.");
+        applySiteTheme();
+        sendResponse({ status: "Tema aplicado." });
+    } else if (request.action === "executeCopy") {
+        copyContactInfo();
+    }
+    return true;
+});
+
+
+(async function main() {
+    applySiteTheme();
+    
+    await reloadAndInject();
+    
+    const observerCallback = () => injectUIElements();
+    persistentObserver = new MutationObserver(observerCallback);
+    
+    console.log("ATI Extensão: A iniciar observer persistente para garantir a UI.");
+    persistentObserver.observe(document.body, { childList: true, subtree: true });
+})();
+
+// --- src\scripts\logic.js ---
+
+// ===================================================================
+// == LOGIC.JS - FUNÇÕES DE LÓGICA PURAS E COMPARTILHADAS           ==
+// ===================================================================
+
+/**
+ * Encontra o último CPF ou CNPJ válido dentro de um array de textos.
+ * @param {string[]} allTexts - Array com os textos das mensagens do chat.
+ * @returns {string|null} O último CPF/CNPJ válido encontrado, ou nulo.
+ */
+export function findCPF(allTexts) {
+    const cpfCnpjRegex = /\b(\d{11}|\d{14})\b/g;
+    const validMatches = [];
+    const blacklist = ['código de barras', 'boleto', 'fatura', 'pix', 'linha digitável'];
+
+    for (const text of allTexts) {
+        const lowerCaseText = text.toLowerCase();
+        if (blacklist.some(keyword => lowerCaseText.includes(keyword))) {
+            continue;
+        }
+        const cleanText = text.replace(/[.\-\/]/g, "");
+        const potentialMatches = cleanText.match(cpfCnpjRegex);
+        if (potentialMatches) {
+            for (const match of potentialMatches) {
+                if (match.length === 11 && isValidCPF(match)) {
+                    validMatches.push(match);
+                } else if (match.length === 14 && isValidCNPJ(match)) {
+                    validMatches.push(match);
+                }
+            }
+        }
+    }
+    return validMatches.length > 0 ? validMatches[validMatches.length - 1] : null;
+}
+
+/**
+ * Substitui placeholders dinâmicos em um texto (ex: [SAUDACAO]).
+ * @param {string} text - O texto do template a ser processado.
+ * @returns {string} - O texto com os placeholders substituídos.
+ */
+export function processDynamicPlaceholders(text) {
+    if (typeof text !== 'string') return '';
+    const hour = new Date().getHours();
+    let saudacao = '';
+
+    if (hour >= 5 && hour < 12) saudacao = 'Bom dia';
+    else if (hour >= 12 && hour < 18) saudacao = 'Boa tarde';
+    else saudacao = 'Boa noite';
+
+    return text.replace(/\[SAUDACAO\]/gi, saudacao);
+}
+
+/**
+ * Carrega as configurações de tema salvas e as aplica como variáveis CSS na página.
+ */
+export function applySiteTheme() {
+    const defaultTheme = {
+        isDarkMode: true,
+        neonBorders: true,
+        borderColor: '#007DFF',
+        textColor: '#E5E5E5',
+    };
+    chrome.storage.local.get('atiSiteTheme', ({ atiSiteTheme }) => {
+        const theme = atiSiteTheme || defaultTheme;
+        const styleId = 'ati-site-theme-styles';
+        let styleTag = document.getElementById(styleId);
+        if (!styleTag) {
+            styleTag = document.createElement('style');
+            styleTag.id = styleId;
+            (document.head || document.documentElement).appendChild(styleTag);
+        }
+        const getLuminance = (hex) => {
+            if (!hex || hex.length < 4) return 0;
+            const rgb = parseInt(hex.slice(1), 16);
+            const r = (rgb >> 16) & 0xff, g = (rgb >> 8) & 0xff, b = (rgb >> 0) & 0xff;
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        };
+        const contrastColor = getLuminance(theme.borderColor) > 128 ? '#111' : '#FFF';
+        
+        // Define as variáveis CSS que serão usadas pelos arquivos .css
+        styleTag.textContent = `
+            :root {
+                --theme-font-primary: 'Orbitron', sans-serif;
+                --theme-font-secondary: Arial, sans-serif;
+                --theme-card-bg: ${theme.isDarkMode ? '#2d2d2d' : '#ffffff'};
+                --theme-text-primary: ${theme.isDarkMode ? '#e0e0e0' : '#333333'};
+                --theme-border-color: ${theme.borderColor};
+                --theme-heading-color: ${theme.textColor};
+                --theme-button-bg: ${theme.borderColor};
+                --theme-button-text: ${contrastColor};
+                --theme-success-color: #22C55E;
+                --theme-error-color: #EF4444;
+                --theme-info-color: #3B82F6;
+                --theme-shadow-color: ${theme.isDarkMode ? theme.borderColor + '66' : '#00000033'};
+                --theme-button-hover-bg: ${contrastColor === '#FFF' ? '#3399ff' : '#0056b3'};
+            }
+        `;
+    });
+}
+
+// --- Funções de Validação (Internas, não precisam de export) ---
+function isValidCPF(cpf) {
+    if (typeof cpf !== 'string') return false;
+    cpf = cpf.replace(/[^\d]/g, '');
+    if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+    let sum = 0, remainder;
+    for (let i = 1; i <= 9; i++) sum += parseInt(cpf.substring(i - 1, i)) * (11 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    if (remainder !== parseInt(cpf.substring(9, 10))) return false;
+    sum = 0;
+    for (let i = 1; i <= 10; i++) sum += parseInt(cpf.substring(i - 1, i)) * (12 - i);
+    remainder = (sum * 10) % 11;
+    if ((remainder === 10) || (remainder === 11)) remainder = 0;
+    return remainder === parseInt(cpf.substring(10, 11));
+}
+
+function isValidCNPJ(cnpj) {
+    if (typeof cnpj !== 'string') return false;
+    cnpj = cnpj.replace(/[^\d]/g, '');
+    if (cnpj.length !== 14 || /^(\d)\1{13}$/.test(cnpj)) return false;
+    let length = cnpj.length - 2, numbers = cnpj.substring(0, length), digits = cnpj.substring(length), sum = 0, pos = length - 7;
+    for (let i = length; i >= 1; i--) {
+        sum += numbers.charAt(length - i) * pos--;
+        if (pos < 2) pos = 9;
+    }
+    let result = sum % 11 < 2 ? 0 : 11 - sum % 11;
+    if (result != digits.charAt(0)) return false;
+    length += 1;
+    numbers = cnpj.substring(0, length);
+    sum = 0;
+    pos = length - 7;
+    for (let i = length; i >= 1; i--) {
+        sum += numbers.charAt(length - i) * pos--;
+        if (pos < 2) pos = 9;
+    }
+    result = sum % 11 < 2 ? 0 : 11 - sum % 11;
+    return result == digits.charAt(1);
+}
+
+
+// --- src\scripts\sgp.js ---
+
+import { showNotification, createModal } from './utils.js';
+
+const ATTENDANTS = {
+    'VICTORH': '99',
+    'LUCASJ': '100',
+    'HELIO': '77',
+    'IGORMAGALHAES': '68',
+    'JEFFERSON': '62',
+};
+
+// --- Funções Auxiliares ---
+
+const setValue = (selector, value) => {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            try {
+                const element = document.querySelector(selector);
+                if (element) {
+                    element.value = value;
+                    element.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            } catch (error) {
+                console.error(`ATI Extensão: Erro ao preencher o campo ${selector}:`, error);
+            }
+            resolve();
+        }, 50);
+    });
+};
+
+function getCurrentFormattedDateTime() {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
+async function promptForContractSelection(contracts) {
+    const contractDetailPromises = contracts.map(async (contract) => {
+        try {
+            const servicesResponse = await fetch(`/admin/clientecontrato/servico/list/ajax/?contrato_id=${contract.id}`);
+            const services = await servicesResponse.json();
+            let enrichedText = contract.text;
+            if (services && services.length > 0) {
+                const primaryServiceId = services[0].id;
+                const detailsResponse = await fetch(`/admin/atendimento/ocorrencia/servico/detalhe/ajax/?servico_id=${primaryServiceId}&contrato_id=${contract.id}`);
+                const details = await detailsResponse.json();
+                if (details && details.length > 0 && details[0]?.end_instalacao) {
+                    enrichedText += ` <br><b>Endereço:</b> ${details[0].end_instalacao}`;
+                }
+            }
+            return { id: contract.id, text: enrichedText };
+        } catch (error) {
+            return { ...contract };
+        }
+    });
+    const enrichedContracts = await Promise.all(contractDetailPromises);
+    const contractOptionsHTML = enrichedContracts.map((contract, index) => `
+        <label class="template-btn" style="display: block; text-align: left; margin-bottom: 8px; padding: 10px;">
+            <input type="radio" name="selected_contract" value="${contract.id}" ${index === 0 ? 'checked' : ''}>
+            <span style="vertical-align: middle;">${contract.text}</span>
+        </label>
+    `).join('');
+    const modalConfig = {
+        title: 'Selecione o Contrato',
+        bodyHTML: `<p>Este cliente possui múltiplos contratos ativos. Escolha o correto.</p><div style="margin-top: 15px;">${contractOptionsHTML}</div>`,
+        footerButtons: [
+            { text: 'Cancelar', className: 'main-btn--cancel', value: 'cancel' },
+            { text: 'Confirmar', className: 'main-btn--confirm', value: 'confirm' }
+        ]
+    };
+    try {
+        const result = await createModal(modalConfig);
+        if (result.action === 'confirm' && result.data.selectedValue) return result.data.selectedValue;
+        throw new Error('Nenhum contrato selecionado.');
+    } catch (error) {
+        throw new Error('Seleção de contrato cancelada.');
+    }
+}
+
+async function fillSgpForm(osText) {
+    try {
+        if (!osText) return showNotification('Nenhum texto de O.S. para preencher.', true);
+        const upperCaseText = osText.toUpperCase();
+        console.log('ATI Extensão: Preenchendo formulário SGP...');
+        const selectedAttendant = localStorage.getItem('sgp_selected_attendant');
+        if (selectedAttendant) await setValue('#id_responsavel', selectedAttendant);
+        const allContractOptions = Array.from(document.querySelectorAll('#id_clientecontrato option'));
+        const activeContracts = allContractOptions.filter(opt => opt.value !== '' && !opt.textContent.toUpperCase().includes('CANCELADO'));
+        if (activeContracts.length === 1) {
+            await setValue('#id_clientecontrato', activeContracts[0].value);
+        } else if (activeContracts.length > 1) {
+            const contractsForModal = activeContracts.map(opt => ({ id: opt.value, text: opt.textContent }));
+            try {
+                const selectedContractId = await promptForContractSelection(contractsForModal);
+                await setValue('#id_clientecontrato', selectedContractId);
+            } catch (error) {
+                showNotification(error.message, true);
+                return;
+            }
+        }
+        await setValue('#id_setor', '2');
+        await setValue('#id_metodo', '3');
+        await setValue('#id_status', '1');
+        document.querySelector('#id_data_agendamento').value = getCurrentFormattedDateTime();
+        const osCheckbox = document.querySelector('#id_os');
+        if (osCheckbox) osCheckbox.checked = false;
+        document.querySelector('#id_conteudo').value = upperCaseText;
+        if (upperCaseText.includes('ENVIO DE COMPROVANTE')) await setValue('#id_tipo', '42');
+        else if (upperCaseText.includes('PROMESSA DE PAGAMENTO')) await setValue('#id_tipo', '41');
+        else if (upperCaseText.includes('CLIENTE SEM ACESSO')) await setValue('#id_tipo', '1');
+        else if (upperCaseText.includes('CLIENTE RELATA LENTIDÃO')) await setValue('#id_tipo', '3');
+        showNotification('Formulário preenchido com sucesso!');
+    } catch (error) {
+        console.error('ATI Extensão: Erro ao preencher formulário SGP:', error);
+        showNotification('Ocorreu um erro ao preencher o formulário.', true);
+    }
+}
+
+// [RESTAURADO] Função para o botão de preenchimento manual
+async function handleManualFillClick() {
+    console.log('ATI Extensão: Botão de preenchimento manual clicado.');
+    try {
+        const clipboardText = await navigator.clipboard.readText();
+        if (!clipboardText) {
+            showNotification('A área de transferência está vazia.', true);
+            return;
+        }
+        fillSgpForm(clipboardText);
+    } catch (error) {
+        showNotification('Falha ao ler da área de transferência. Verifique as permissões.', true);
+    }
+}
+
+// --- Injeção e Inicialização ---
+
+// [RESTAURADO] Função que injeta o botão manual
+function injectSgpButton() {
+    if (document.getElementById('fill-from-chatmix-btn')) return;
+    const submitButton = document.getElementById('btacao');
+    if (submitButton) {
+        const customButton = document.createElement('input');
+        customButton.id = 'fill-from-chatmix-btn';
+        customButton.type = 'button';
+        customButton.value = 'Preencher com Dados Copiados';
+        customButton.className = 'button blue';
+        customButton.style.marginLeft = '10px';
+        customButton.addEventListener('click', handleManualFillClick);
+        submitButton.parentNode.insertBefore(customButton, submitButton.nextSibling);
+    }
+}
+
+function injectAttendantSelector() {
+    if (document.getElementById('attendant-selector-container')) return;
+    const headerRight = document.getElementById('header-right');
+    if (!headerRight) return;
+    const container = document.createElement('div');
+    container.id = 'attendant-selector-container';
+    container.style.cssText = 'position: absolute; top: 10px; right: 450px; z-index: 9999; display: flex; align-items: center; color: white; font-family: Arial, sans-serif;';
+    const label = document.createElement('label');
+    label.innerText = 'Atendente:';
+    label.style.marginRight = '8px';
+    label.style.fontWeight = 'bold';
+    const select = document.createElement('select');
+    select.id = 'sgp-attendant-selector';
+    select.style.padding = '5px';
+    select.style.borderRadius = '4px';
+    Object.keys(ATTENDANTS).forEach(name => {
+        const option = document.createElement('option');
+        option.value = ATTENDANTS[name];
+        option.innerText = name;
+        select.appendChild(option);
+    });
+    const savedAttendant = localStorage.getItem('sgp_selected_attendant');
+    if (savedAttendant) select.value = savedAttendant;
+    else localStorage.setItem('sgp_selected_attendant', select.value);
+    select.addEventListener('change', () => {
+        localStorage.setItem('sgp_selected_attendant', select.value);
+        showNotification(`Atendente padrão definido como: ${select.options[select.selectedIndex].text}`);
+    });
+    container.appendChild(label);
+    container.appendChild(select);
+    headerRight.prepend(container);
+}
+
+async function initializeSgpScript() {
+    injectSgpButton(); // [RESTAURADO] Chamada para a função
+    injectAttendantSelector();
+    
+    const data = await chrome.storage.local.get('pendingOsText');
+    if (data.pendingOsText) {
+        console.log("ATI Extensão: Texto de O.S. pendente encontrado. Preenchendo...");
+        await fillSgpForm(data.pendingOsText);
+        chrome.storage.local.remove('pendingOsText');
+    }
+}
+
+const readyCheckInterval = setInterval(() => {
+    if (document.getElementById('header-right')) {
+        clearInterval(readyCheckInterval);
+        initializeSgpScript();
+    }
+}, 200);
+
+// --- src\scripts\utils.js ---
+
+import { processDynamicPlaceholders } from './logic.js';
+
+const ATI_EXTENSION_CONTAINER_ID = 'ati-extension-root-container';
+
+function getOrCreateExtensionContainer() {
+    let container = document.getElementById(ATI_EXTENSION_CONTAINER_ID);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = ATI_EXTENSION_CONTAINER_ID;
+        Object.assign(container.style, {
+            position: 'fixed', top: '0', left: '0',
+            width: '0', height: '0', zIndex: '2147483647',
+        });
+        document.body.appendChild(container);
+    }
+    return container;
+}
+
+export function showNotification(message, isError = false, duration = 3000) {
+    const notification = document.createElement("div");
+    notification.textContent = message;
+    notification.className = `notification ${isError ? 'error' : 'success'}`;
+    getOrCreateExtensionContainer().appendChild(notification);
+    setTimeout(() => { notification.remove(); }, duration);
+}
+
+function findSuggestedTemplate(allTexts, allTemplates) {
+    const osTemplates = allTemplates.filter(t => t.category !== 'quick_reply');
+    if (osTemplates.length === 0) return null;
+    const chatContent = allTexts.join(' ').toLowerCase();
+    for (const template of osTemplates) {
+        const keywords = template.keywords || [];
+        if (keywords.some(keyword => chatContent.includes(keyword.toLowerCase()))) {
+            return template;
+        }
+    }
+    return null;
+}
+
+export function createModal({ title, bodyHTML, footerButtons }) {
+    return new Promise((resolve, reject) => {
+        const modalId = `ati-modal-${Date.now()}`;
+        if (document.getElementById(modalId)) return reject('Modal já existe.');
+        const modalBackdrop = document.createElement('div');
+        modalBackdrop.id = modalId;
+        modalBackdrop.className = 'modal-backdrop ati-os-modal';
+        const buttonsHTML = footerButtons.map(btn =>
+            `<button class="main-btn ${btn.className}" data-value="${btn.value}">${btn.text}</button>`
+        ).join('');
+        modalBackdrop.innerHTML = `
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>${title}</h3>
+                    <button class="modal-close-btn" data-value="cancel">&times;</button>
+                </div>
+                <div class="modal-body">${bodyHTML}</div>
+                <div class="modal-footer">${buttonsHTML}</div>
+            </div>
+        `;
+        getOrCreateExtensionContainer().appendChild(modalBackdrop);
+        const modalContent = modalBackdrop.querySelector('.modal-content');
+        const closeModal = (reason = 'cancel') => {
+            modalBackdrop.remove();
+            reject(new Error(reason));
+        };
+        modalBackdrop.querySelectorAll('button[data-value]').forEach(button => {
+            button.addEventListener('click', () => {
+                const action = button.getAttribute('data-value');
+                if (action === 'cancel') {
+                    closeModal();
+                    return;
+                }
+                const data = {};
+                const textarea = modalContent.querySelector('.modal-textarea');
+                const radio = modalContent.querySelector('input[type="radio"]:checked');
+                if (textarea) data.textValue = textarea.value;
+                if (radio) data.selectedValue = radio.value;
+                modalBackdrop.remove();
+                resolve({ action, data });
+            });
+        });
+        modalBackdrop.addEventListener('click', (e) => {
+            if (e.target === modalBackdrop) closeModal();
+        });
+    });
+}
+
+
+export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
+    const clientChatTexts = extractChatFn();
+    const suggestedTemplate = findSuggestedTemplate(clientChatTexts, allTemplates);
+    const { firstName, phoneNumber } = clientData;
+    const osBaseText = `${phoneNumber || ''} ${firstName || ''} | `;
+    const osOnlyTemplates = allTemplates.filter(t => t.category !== 'quick_reply');
+
+    const templatesByCategory = osOnlyTemplates.reduce((acc, t) => {
+        // [CORRIGIDO] Usa o campo 'subCategory' para agrupar, que é o que o painel web salva.
+        const category = t.subCategory || 'Outros';
+        (acc[category] = acc[category] || []).push(t);
+        return acc;
+    }, {});
+
+    let modelsHTML = '';
+    for (const category in templatesByCategory) {
+        modelsHTML += `<h4 class="modal-category-title">${category}</h4>`;
+        modelsHTML += `<div class="modal-btn-group">` + templatesByCategory[category]
+            .map(t => `<button class="template-btn" data-template-text="${t.text.replace(/"/g, '&quot;')}">${t.title}</button>`)
+            .join('') + `</div>`;
+    }
+
+    const suggestionHTML = suggestedTemplate ?
+        `<div class="modal-suggestion"><strong>Sugestão:</strong><button class="template-btn template-btn--suggestion" data-template-text="${suggestedTemplate.text.replace(/"/g, '&quot;')}">${suggestedTemplate.title}</button></div>` :
+        '';
+
+    const modalConfig = {
+        title: 'Criar Ordem de Serviço',
+        bodyHTML: `
+            ${suggestionHTML}
+            <label for="osTextArea">Descrição da O.S.:</label>
+            <textarea id="osTextArea" class="modal-textarea"></textarea>
+            <div class="modal-templates-container"><strong>Modelos:</strong>${modelsHTML}</div>
+        `,
+        footerButtons: [
+            { text: 'Cancelar', className: 'main-btn--cancel', value: 'cancel' },
+            { text: 'Copiar O.S.', className: 'main-btn--confirm', value: 'copy' },
+            { text: 'Criar no SGP', className: 'main-btn--sgp', value: 'send_sgp' }
+        ]
+    };
+
+    try {
+        const resultPromise = createModal(modalConfig);
+        const modalElement = document.querySelector('.ati-os-modal');
+        const osTextArea = modalElement.querySelector('#osTextArea');
+        osTextArea.value = processDynamicPlaceholders(osBaseText).toUpperCase();
+
+        modalElement.querySelectorAll('.template-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const templateText = btn.getAttribute('data-template-text');
+                const fullText = osBaseText + templateText;
+                osTextArea.value = processDynamicPlaceholders(fullText).toUpperCase();
+                osTextArea.focus();
+            });
+        });
+
+        const userAction = await resultPromise;
+        const osText = userAction.data.textValue.toUpperCase();
+
+        if (userAction.action === 'copy') {
+            await navigator.clipboard.writeText(osText);
+            showNotification("O.S. copiada com sucesso!");
+        } else if (userAction.action === 'send_sgp') {
+            if (!osText || osText.trim() === '|') {
+                showNotification("A descrição da O.S. está vazia.", true);
+                return;
+            }
+            if (!clientData || (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber)) {
+                showNotification("Nenhum dado do cliente encontrado para buscar no SGP.", true);
+                return;
+            }
+            showNotification("Preparando para abrir SGP...");
+            await chrome.storage.local.set({ ...clientData, osText: osText });
+            chrome.runtime.sendMessage({ action: "createOccurrenceInSgp" });
+        }
+    } catch (error) {
+        console.log("ATI Extensão: Modal fechado ou ação cancelada.");
+    }
+}
+
+// --- vite.chatmix.config.js ---
+
+// vite.chatmix.config.js
+
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+
+export default defineConfig({
+  build: {
+    outDir: resolve(__dirname, 'dist'),
+    emptyOutDir: false, // Não apaga a pasta 'dist'
+    rollupOptions: {
+      // Apenas UMA entrada
+      input: {
+        chatmix: resolve(__dirname, 'src/scripts/chatmix.js'),
+      },
+      output: {
+        format: 'iife',
+        entryFileNames: 'scripts/[name].js', // Saída: dist/scripts/chatmix.js
+      },
+    },
+  },
+});
+
+// --- vite.config.js ---
+
+// vite.config.js
+
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+
+export default defineConfig({
+  build: {
+    outDir: resolve(__dirname, 'dist'),
+    emptyOutDir: true, 
+    
+    rollupOptions: {
+      input: {
+        background: resolve(__dirname, 'src/background.js'),
+        popup: resolve(__dirname, 'src/popup.js'),
+        'bridge-listener': resolve(__dirname, 'src/bridge-listener.js'),
+        'bridge-injected': resolve(__dirname, 'src/bridge-injected.js'),
+      },
+      output: {
+        format: 'es', 
+        entryFileNames: '[name].js',
+        assetFileNames: 'assets/[name][extname]'
+      }
+    }
+  }
+});
+
+// --- vite.sgp.config.js ---
+
+// vite.sgp.config.js
+
+import { defineConfig } from 'vite';
+import { resolve } from 'path';
+
+export default defineConfig({
+  build: {
+    outDir: resolve(__dirname, 'dist'),
+    emptyOutDir: false, // Não apaga a pasta 'dist'
+    rollupOptions: {
+      // Apenas UMA entrada
+      input: {
+        sgp: resolve(__dirname, 'src/scripts/sgp.js'),
+      },
+      output: {
+        format: 'iife',
+        entryFileNames: 'scripts/[name].js', // Saída: dist/scripts/sgp.js
+      },
+    },
+  },
+});

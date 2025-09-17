@@ -1,0 +1,34 @@
+{
+  "name": "extensao-ati",
+  "version": "1.0.0",
+  "description": "",
+  "main": "background.js",
+  "scripts": {
+    "build": "npm run build:main && npm run build:chatmix && npm run build:sgp",
+    "build:main": "vite build",
+    "build:chatmix": "vite build --config vite.chatmix.config.js",
+    "build:sgp": "vite build --config vite.sgp.config.js",
+    "dev": "concurrently \"npm:dev:*\"",
+    "dev:main": "npm run build:main -- --watch",
+    "dev:chatmix": "npm run build:chatmix -- --watch",
+    "dev:sgp": "npm run build:sgp -- --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Vituali/Extensao-ati.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Vituali/Extensao-ati/issues"
+  },
+  "homepage": "https://github.com/Vituali/Extensao-ati#readme",
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "vite": "^7.1.5"
+  },
+  "dependencies": {
+    "firebase": "^12.2.1"
+  }
+}
