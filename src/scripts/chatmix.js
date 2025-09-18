@@ -341,6 +341,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     const observerCallback = () => injectUIElements();
     persistentObserver = new MutationObserver(observerCallback);
     
-    console.log("ATI Extensão: A iniciar observer persistente para garantir a UI.");
+    
     persistentObserver.observe(document.body, { childList: true, subtree: true });
 })();

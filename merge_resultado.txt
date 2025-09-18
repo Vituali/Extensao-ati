@@ -12,6 +12,10 @@ node_modules
 dist
 
 
+// --- Iniciar dev.bat ---
+
+npm run dev
+
 // --- package.json ---
 
 {
@@ -24,7 +28,7 @@ dist
     "build:main": "vite build",
     "build:chatmix": "vite build --config vite.chatmix.config.js",
     "build:sgp": "vite build --config vite.sgp.config.js",
-    "dev": "echo 'Para desenvolver, abra 3 terminais e execute os comandos: npm run dev:main, npm run dev:chatmix e npm run dev:sgp'",
+    "dev": "concurrently \"npm:dev:*\"",
     "dev:main": "npm run build:main -- --watch",
     "dev:chatmix": "npm run build:chatmix -- --watch",
     "dev:sgp": "npm run build:sgp -- --watch"
@@ -41,6 +45,7 @@ dist
   },
   "homepage": "https://github.com/Vituali/Extensao-ati#readme",
   "devDependencies": {
+    "concurrently": "^9.2.1",
     "vite": "^7.1.5"
   },
   "dependencies": {
@@ -312,7 +317,7 @@ dist
 {
   "manifest_version": 3,
   "name": "ATI - Auxiliar de Atendimentos",
-  "version": "1.1",
+  "version": "1.2",
   "description": "Copia dados, sugere e cria Ordens de Serviço a partir do chat.",
   
   "permissions": [
@@ -426,10 +431,9 @@ async function loadAndCacheTemplates() {
         const quickReplies = quickRepliesData ? Object.values(quickRepliesData) : [];
         const osTemplates = osTemplatesData ? Object.values(osTemplatesData) : [];
 
-        // [CORRIGIDO] Preserva as categorias dos modelos de O.S. e apenas tagueia as respostas rápidas.
         const allTemplates = [
             ...quickReplies.map(t => ({ ...t, category: 'quick_reply' })),
-            ...osTemplates // Mantém os modelos de O.S. como vêm do Firebase
+            ...osTemplates
         ];
 
         const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
@@ -445,10 +449,9 @@ async function loadAndCacheTemplates() {
 }
 
 
-// --- Lógica do SGP (Restaurada da versão funcional) ---
+// --- Lógica do SGP ---
 let isSearchRunning = false;
-// ... (O restante do código do SGP e dos listeners continua o mesmo da versão anterior)
-// Apenas a função loadAndCacheTemplates acima precisava ser alterada. O resto do arquivo pode permanecer igual.
+
 async function performLoginCheck(baseUrl) {
     try {
         const response = await fetch(`${baseUrl}/admin/`, {
@@ -499,18 +502,64 @@ async function getSgpStatusWithCache() {
     }
     return currentStatus;
 }
-async function openOrFocusTab(url, titleQuery) {
-    const urlPattern = `*://*/*admin*`;
-    const tabs = await chrome.tabs.query({ url: urlPattern });
-    const matchingTab = tabs.find(tab => tab.title && tab.title.includes(titleQuery));
-    if (matchingTab) {
-        await chrome.tabs.update(matchingTab.id, { url, active: true });
-        await chrome.windows.update(matchingTab.windowId, { focused: true });
-        return matchingTab;
+
+// =======================================================================
+// == FUNÇÃO CORRIGIDA E MELHORADA (COM SUPORTE A TITLEQUERY PARA CLIENTE ESPECÍFICO) ==
+// =======================================================================
+async function openOrFocusSgpTab(url, titleQuery = null) {
+    const sgpPatterns = [
+        "https://sgp.atiinternet.com.br/*",
+        "http://201.158.20.35:8000/*"
+    ];
+
+    // Se titleQuery for fornecido, prioriza busca por aba específica do cliente
+    let tabs = [];
+    if (titleQuery) {
+        // Busca tabs do SGP que combinem com o titleQuery (ex: nome do cliente + ID)
+        tabs = await chrome.tabs.query({ 
+            url: sgpPatterns,
+            title: `*${titleQuery}*`  // Usa wildcard para matching parcial no título
+        });
+        if (tabs.length === 0) {
+            // Fallback: busca qualquer aba do SGP se não encontrar específica
+            tabs = await chrome.tabs.query({ url: sgpPatterns });
+        }
     } else {
+        // Sem titleQuery: busca qualquer aba do SGP
+        tabs = await chrome.tabs.query({ url: sgpPatterns, active: true, currentWindow: true });
+        if (tabs.length === 0) {
+            tabs = await chrome.tabs.query({ url: sgpPatterns });
+        }
+    }
+
+    if (tabs.length > 0) {
+        const tabToUpdate = tabs[0];
+        
+        // Se titleQuery foi fornecido e a aba atual já é para este cliente (verifica se URL ou título combina),
+        // apenas foca sem atualizar URL
+        if (titleQuery && (tabToUpdate.title.includes(titleQuery) || tabToUpdate.url.includes(`/cliente/${titleQuery.split('(')[1]?.replace(')', '')}`))) {
+            console.log(`ATI Extensão: [SGP] Aba para cliente "${titleQuery}" já aberta. Apenas focando.`);
+            await chrome.windows.update(tabToUpdate.windowId, { focused: true });
+            await chrome.tabs.update(tabToUpdate.id, { active: true });
+            return tabToUpdate;
+        } else {
+            // Caso contrário, atualiza a URL se diferente
+            if (tabToUpdate.url === url) {
+                await chrome.windows.update(tabToUpdate.windowId, { focused: true });
+                await chrome.tabs.update(tabToUpdate.id, { active: true });
+            } else {
+                await chrome.tabs.update(tabToUpdate.id, { url, active: true });
+                await chrome.windows.update(tabToUpdate.windowId, { focused: true });
+            }
+            return tabToUpdate;
+        }
+    } else {
+        // Nenhuma aba encontrada: cria nova
+        console.log(`ATI Extensão: [SGP] Nenhuma aba encontrada. Criando nova para "${titleQuery || 'página geral'}"`);
         return await chrome.tabs.create({ url });
     }
 }
+
 async function searchClientInSgp() {
     if (isSearchRunning) return;
     isSearchRunning = true;
@@ -518,7 +567,7 @@ async function searchClientInSgp() {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
         if (!isLoggedIn) {
             const loginUrl = `${baseUrl}/accounts/login/?next=/admin/`;
-            await openOrFocusTab(loginUrl, "SGP");
+            await openOrFocusSgpTab(loginUrl);
             return;
         }
         const { cpfCnpj, fullName, phoneNumber } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
@@ -539,9 +588,9 @@ async function searchClientInSgp() {
         if (client) {
             const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const clientPageUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
-            await openOrFocusTab(clientPageUrl, titleQuery);
+            await openOrFocusSgpTab(clientPageUrl, titleQuery);
         } else {
-            await openOrFocusTab(`${baseUrl}/admin/`, "SGP");
+            await openOrFocusSgpTab(`${baseUrl}/admin/`);
         }
     } finally {
         isSearchRunning = false;
@@ -554,7 +603,7 @@ async function createOccurrenceInSgp() {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
         if (!isLoggedIn) {
             const loginUrl = `${baseUrl}/accounts/login/?next=/admin/`;
-            await openOrFocusTab(loginUrl, "SGP");
+            await openOrFocusSgpTab(loginUrl);
             return;
         }
         const { cpfCnpj, fullName, phoneNumber, osText } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber", "osText"]);
@@ -576,9 +625,17 @@ async function createOccurrenceInSgp() {
             const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const occurrencePageUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
             await chrome.storage.local.set({ pendingOsText: osText });
-            await openOrFocusTab(occurrencePageUrl, titleQuery);
+            const sgpTab = await openOrFocusSgpTab(occurrencePageUrl, titleQuery);
+            // Envia mensagem para preencher o form se a aba já existir
+            chrome.tabs.sendMessage(sgpTab.id, { action: "fillSgpForm", osText: osText }, (response) => {
+                if (chrome.runtime.lastError) {
+                    console.log("ATI Extensão: Aba do SGP é nova, o preenchimento ocorrerá ao carregar.");
+                } else {
+                    console.log("ATI Extensão: Aba do SGP já estava aberta, preenchimento enviado por mensagem.");
+                }
+            });
         } else {
-            await openOrFocusTab(`${baseUrl}/admin/`, "SGP");
+            await openOrFocusSgpTab(`${baseUrl}/admin/`);
         }
     } finally {
         isSearchRunning = false;
@@ -679,6 +736,8 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         }
     }
 });
+
+
 
 // --- src\bridge-injected.js ---
 
@@ -1884,9 +1943,13 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
     const osBaseText = `${phoneNumber || ''} ${firstName || ''} | `;
     const osOnlyTemplates = allTemplates.filter(t => t.category !== 'quick_reply');
 
+    // =======================================================================
+    // == CORREÇÃO APLICADA AQUI                                            ==
+    // =======================================================================
+    // Alterado de 't.subCategory' para 't.category' para corresponder
+    // à forma como o seu site salva os dados no Firebase.
     const templatesByCategory = osOnlyTemplates.reduce((acc, t) => {
-        // [CORRIGIDO] Usa o campo 'subCategory' para agrupar, que é o que o painel web salva.
-        const category = t.subCategory || 'Outros';
+        const category = t.category || 'Outros'; // <-- Linha corrigida
         (acc[category] = acc[category] || []).push(t);
         return acc;
     }, {});
@@ -1957,6 +2020,8 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
     }
 }
 
+
+
 // --- vite.chatmix.config.js ---
 
 // vite.chatmix.config.js
@@ -1965,9 +2030,10 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  publicDir: false, // Adicione esta linha
   build: {
     outDir: resolve(__dirname, 'dist'),
-    emptyOutDir: false, // Não apaga a pasta 'dist'
+    emptyOutDir: false, // Não apaga a pasta 'dist' [cite: 409]
     rollupOptions: {
       // Apenas UMA entrada
       input: {
@@ -2017,9 +2083,10 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  publicDir: false, // Adicione esta linha
   build: {
     outDir: resolve(__dirname, 'dist'),
-    emptyOutDir: false, // Não apaga a pasta 'dist'
+    emptyOutDir: false, // Não apaga a pasta 'dist' [cite: 414]
     rollupOptions: {
       // Apenas UMA entrada
       input: {

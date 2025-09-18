@@ -57,7 +57,6 @@ async function loadAndCacheTemplates() {
     }
 }
 
-
 // --- Lógica do SGP ---
 let isSearchRunning = false;
 
@@ -75,6 +74,7 @@ async function performLoginCheck(baseUrl) {
         throw error;
     }
 }
+
 async function checkSgpStatus() {
     const dnsUrl = 'https://sgp.atiinternet.com.br';
     const ipUrl = 'http://201.158.20.35:8000';
@@ -92,6 +92,7 @@ async function checkSgpStatus() {
     }
     return { isLoggedIn: false, baseUrl: dnsUrl };
 }
+
 async function getSgpStatusWithCache() {
     const today = new Date().toISOString().slice(0, 10);
     const cache = await chrome.storage.local.get('sgp_status_cache');
@@ -111,41 +112,51 @@ async function getSgpStatusWithCache() {
     }
     return currentStatus;
 }
+
 // =======================================================================
-// == FUNÇÃO CORRIGIDA E MELHORADA                                      ==
+// == FUNÇÃO ATUALIZADA PARA GERENCIAR ABAS POR TÍTULO DA PÁGINA ==
 // =======================================================================
-async function openOrFocusSgpTab(url) {
+async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
     const sgpPatterns = [
         "https://sgp.atiinternet.com.br/*",
         "http://201.158.20.35:8000/*"
     ];
 
-    // Prioriza a aba ativa na janela atual, se for uma aba do SGP
-    let tabs = await chrome.tabs.query({ url: sgpPatterns, active: true, currentWindow: true });
-
-    if (tabs.length === 0) {
-        // Se não encontrar, procura em todas as janelas
+    let tabs = [];
+    if (titleQuery) {
+        // Busca tabs do SGP que correspondam ao título da página (ex: "SGP - DOUGLAS ANTONIO CARVALHO DE SIQUEIRA (16677)")
+        tabs = await chrome.tabs.query({ 
+            url: sgpPatterns,
+            title: `*${titleQuery}*`
+        });
+    } else {
+        // Sem titleQuery, busca qualquer aba do SGP
         tabs = await chrome.tabs.query({ url: sgpPatterns });
     }
 
-    if (tabs.length > 0) {
-        const tabToUpdate = tabs[0];
-        
-        // Verifica se a aba já está na URL de destino para evitar refresh desnecessário
-        if (tabToUpdate.url === url) {
-            // Se já estiver na página correta, apenas foca a janela e a aba
-            await chrome.windows.update(tabToUpdate.windowId, { focused: true });
-            await chrome.tabs.update(tabToUpdate.id, { active: true });
-        } else {
-            // Se for uma página diferente, atualiza a URL e foca
-            await chrome.tabs.update(tabToUpdate.id, { url, active: true });
-            await chrome.windows.update(tabToUpdate.windowId, { focused: true });
+    if (tabs.length > 0 && titleQuery) {
+        // Verifica se alguma aba corresponde exatamente ao titleQuery
+        const matchingTab = tabs.find(tab => tab.title.includes(titleQuery));
+        if (matchingTab) {
+            if (forceUpdate) {
+                // Para criar O.S., atualiza a URL para a página de ocorrência
+                console.log(`ATI Extensão: [SGP] Atualizando aba do cliente "${titleQuery}" para URL: ${url}`);
+                await chrome.tabs.update(matchingTab.id, { url, active: true });
+                await chrome.windows.update(matchingTab.windowId, { focused: true });
+                return matchingTab;
+            } else {
+                // Para busca, apenas foca a aba sem alterar a URL
+                console.log(`ATI Extensão: [SGP] Aba do cliente "${titleQuery}" já aberta (URL: ${matchingTab.url}). Apenas focando.`);
+                await chrome.windows.update(matchingTab.windowId, { focused: true });
+                await chrome.tabs.update(matchingTab.id, { active: true });
+                return matchingTab;
+            }
         }
-        return tabToUpdate;
-    } else {
-        // Se nenhuma aba do SGP existir, cria uma nova
-        return await chrome.tabs.create({ url });
     }
+
+    // Se nenhuma aba do cliente foi encontrada ou não há titleQuery, cria uma nova aba
+    console.log(`ATI Extensão: [SGP] Nenhuma aba encontrada para "${titleQuery || 'página geral'}". Criando nova aba com URL: ${url}`);
+    return await chrome.tabs.create({ url });
 }
 
 async function searchClientInSgp() {
@@ -164,7 +175,10 @@ async function searchClientInSgp() {
                 const response = await fetch(url, { credentials: 'include' });
                 const data = await response.json();
                 return (data && data.length > 0) ? data[0] : null;
-            } catch (error) { return null; }
+            } catch (error) {
+                console.error("ATI Extensão: [SGP] Erro na requisição para a API:", error);
+                return null;
+            }
         };
         let client = null;
         if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
@@ -174,8 +188,11 @@ async function searchClientInSgp() {
             client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
         }
         if (client) {
+            const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const clientPageUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
-            await openOrFocusSgpTab(clientPageUrl);
+            // Usa openOrFocusSgpTab sem forceUpdate para apenas focar a aba existente
+            const tab = await openOrFocusSgpTab(clientPageUrl, titleQuery);
+            return tab;
         } else {
             await openOrFocusSgpTab(`${baseUrl}/admin/`);
         }
@@ -183,6 +200,7 @@ async function searchClientInSgp() {
         isSearchRunning = false;
     }
 }
+
 async function createOccurrenceInSgp() {
     if (isSearchRunning) return;
     isSearchRunning = true;
@@ -199,7 +217,10 @@ async function createOccurrenceInSgp() {
                 const response = await fetch(url, { credentials: 'include' });
                 const data = await response.json();
                 return (data && data.length > 0) ? data[0] : null;
-            } catch (error) { return null; }
+            } catch (error) {
+                console.error("ATI Extensão: [SGP] Erro na requisição para a API:", error);
+                return null;
+            }
         };
         let client = null;
         if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
@@ -209,9 +230,24 @@ async function createOccurrenceInSgp() {
             client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
         }
         if (client) {
+            const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const occurrencePageUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
             await chrome.storage.local.set({ pendingOsText: osText });
-            await openOrFocusSgpTab(occurrencePageUrl);
+            const sgpTab = await openOrFocusSgpTab(occurrencePageUrl, titleQuery, true); // forceUpdate=true para criar O.S.
+            // Aguarda a aba carregar antes de enviar a mensagem
+            chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+                if (tabId === sgpTab.id && changeInfo.status === 'complete') {
+                    chrome.tabs.sendMessage(sgpTab.id, { action: "fillSgpForm", osText: osText }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            console.log("ATI Extensão: Aba do SGP é nova, o preenchimento ocorrerá ao carregar.");
+                        } else {
+                            console.log("ATI Extensão: Aba do SGP já estava aberta, preenchimento enviado por mensagem.");
+                        }
+                    });
+                    chrome.tabs.onUpdated.removeListener(listener);
+                }
+            });
+            return sgpTab;
         } else {
             await openOrFocusSgpTab(`${baseUrl}/admin/`);
         }
@@ -219,6 +255,7 @@ async function createOccurrenceInSgp() {
         isSearchRunning = false;
     }
 }
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("ATI Extensão: Mensagem recebida no background:", request);
     switch (request.action) {
@@ -247,6 +284,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     return true;
 });
+
 chrome.action.onClicked.addListener((tab) => {
     const panelUrl = "https://vituali.github.io/ATI/";
     chrome.tabs.query({ url: panelUrl }, (tabs) => {
@@ -258,6 +296,7 @@ chrome.action.onClicked.addListener((tab) => {
         }
     });
 });
+
 chrome.commands.onCommand.addListener(async (command) => {
     if (command === "copy-data") {
         try {
@@ -270,6 +309,7 @@ chrome.commands.onCommand.addListener(async (command) => {
         }
     }
 });
+
 const INJECTION_RULES = {
     CHATMIX: {
         matches: ["https://www.chatmix.com.br/v2/chat*"],
@@ -287,6 +327,7 @@ const INJECTION_RULES = {
         css: [],
     }
 };
+
 async function injectFiles(tabId, rule) {
     try {
         if (rule.css && rule.css.length > 0) {
@@ -299,6 +340,7 @@ async function injectFiles(tabId, rule) {
         console.error(`ATI Extensão: Falha ao injetar script em ${tabId} (${err.message})`);
     }
 }
+
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url) {
         for (const key in INJECTION_RULES) {
