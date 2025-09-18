@@ -1,7 +1,3 @@
-/* =================================================================== */
-/* == V2.CSS (REVISADO PARA USAR TEMA DO SITE) - ATI EXTENSÃO       == */
-/* =================================================================== */
-
 /* --- Contêiner de Ações --- */
 #actionsContainerV2 {
     display: grid;
@@ -82,9 +78,9 @@
 #atiQuickRepliesContainerV2 .qr-btn {
     padding: 6px 14px;
     border-radius: 16px;
-    border: 1px solid var(--theme-border-color, #555);
+    border: 1px solid var(--theme-modal-border-color, #555);
     background-color: transparent;
-    color: var(--theme-text-primary, #ccc);
+    color: var(--theme-text-primary, #333);
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
@@ -132,7 +128,7 @@ html.dark body {
     --chatPrimary: rgb(0, 120, 215) !important;
 }
 html.dark .bg-chat-primary {
-    background-color: rgb(0, 120, 215) !important;
+    background-color: var(--chatPrimary) !important;
 }
 html.dark .message_received:is(.dark *) {
     background-color: rgba(50, 50, 50, 0.5) !important;
@@ -140,9 +136,31 @@ html.dark .message_received:is(.dark *) {
 html.dark .bg-neutral-400 {
     background-color: transparent !important;
 }
-html.dark .attendance_item.newMessage[data-v-14ec4674]:is(.dark *) {
-    background-color: rgba(0, 120, 215, 0.3) !important;
+
+/* MODIFICADO: Controle aprimorado do fundo e hover dos itens de atendimento */
+html.dark .attendance_item {
+    transition: background-color 0.2s ease-in-out;
 }
+
+/* NOVO: Fundo padrão para os itens da lista no modo escuro */
+.attendance_item[data-v-14ec4674]:is(.dark *) {
+    background-color: rgb(60, 60, 60) !important;
+}
+
+/* Efeito de hover para itens que NÃO estão ativos */
+html.dark .attendance_item:not(.active):hover {
+    background-color: rgba(0, 120, 215, 0.25) !important;
+}
+/* Fundo para o item que está selecionado (ativo) */
+html.dark .attendance_item.active {
+    background-color: var(--chatPrimary) !important;
+}
+/* Fundo para novas mensagens que ainda não foram selecionadas */
+html.dark .attendance_item.newMessage:not(.active) {
+    background-color: rgba(0, 120, 215, 0.4) !important;
+}
+
+
 /* ---- TRAÇADO E DIVISÓRIAS ---- */
 
 html.dark header.dark\:bg-neutral-700,
@@ -190,3 +208,4 @@ html.dark .chat_sidebar[data-v-2022d195] > section {
 html.dark .chat_content .dark\:bg-neutral-500 .border-l-2 {
     border-left-color: transparent !important;
 }
+

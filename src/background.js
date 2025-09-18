@@ -1,18 +1,13 @@
-// src/background.js (versão refatorada)
+// MODIFICADO: Importa a configuração de um local centralizado.
+import { firebaseConfig } from './firebase-config.js';
 
-// --- Configuração do Firebase ---
-const firebaseConfig = {
-    apiKey: "AIzaSyB5wO0x-7NFmh6waMKzWzRew4ezfYOmYBI",
-    authDomain: "site-ati-75d83.firebaseapp.com",
-    databaseURL: "https://site-ati-75d83-default-rtdb.firebaseio.com/",
-    projectId: "site-ati-75d83"
-};
 // --- Funções de Lógica do Firebase (Usando API REST) ---
 async function fetchTemplatesFromFirebaseRest(username, dataType) {
   if (!username) {
     console.log(`ATI Extensão: Não é possível buscar '${dataType}' sem um atendente logado.`);
     return null;
   }
+  // Agora usa a configuração importada.
   const dbURL = firebaseConfig.databaseURL;
   const url = `${dbURL}${dataType}/${username}.json`;
   try {
@@ -37,16 +32,20 @@ async function loadAndCacheTemplates() {
             fetchTemplatesFromFirebaseRest(atendenteAtual, 'respostas'),
             fetchTemplatesFromFirebaseRest(atendenteAtual, 'modelos_os')
         ]);
+
         const quickReplies = quickRepliesData ? Object.values(quickRepliesData) : [];
         const osTemplates = osTemplatesData ? Object.values(osTemplatesData) : [];
+
         const allTemplates = [
             ...quickReplies.map(t => ({ ...t, category: 'quick_reply' })),
             ...osTemplates
         ];
+
         const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
         await chrome.storage.local.set({ cachedOsTemplates: validTemplates });
         console.log(`ATI Extensão: ${validTemplates.length} modelos de '${atendenteAtual}' carregados e salvos em cache.`);
         return validTemplates;
+
     } catch (error) {
         console.error("ATI Extensão: Falha crítica ao carregar do Firebase. Usando cache como fallback.", error);
         const { cachedOsTemplates } = await chrome.storage.local.get('cachedOsTemplates');
@@ -56,6 +55,7 @@ async function loadAndCacheTemplates() {
 
 // --- Lógica do SGP ---
 let isSearchRunning = false;
+
 async function performLoginCheck(baseUrl) {
     try {
         const response = await fetch(`${baseUrl}/admin/`, {
@@ -117,6 +117,7 @@ async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
         "https://sgp.atiinternet.com.br/*",
         "http://201.158.20.35:8000/*"
     ];
+
     let tabs = [];
     if (titleQuery) {
         tabs = await chrome.tabs.query({ 
@@ -147,7 +148,7 @@ async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
     return await chrome.tabs.create({ url });
 }
 
-// NOVO: Função centralizada para buscar o cliente no SGP
+// Função centralizada para buscar o cliente no SGP
 async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
     const executeSearch = async (url) => {
         try {
@@ -170,10 +171,11 @@ async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
     return client;
 }
 
-// MODIFICADO: Função de busca simplificada
-async function searchClientInSgp() {
+// MODIFICADO: Aceita o ID da aba de origem para responder quando a tarefa terminar
+async function searchClientInSgp(tabId) {
     if (isSearchRunning) return;
     isSearchRunning = true;
+    let success = false;
     try {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
         if (!isLoggedIn) {
@@ -181,10 +183,8 @@ async function searchClientInSgp() {
             await openOrFocusSgpTab(loginUrl);
             return;
         }
-
         const clientData = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
-        const client = await findClientInSgp(baseUrl, clientData); // <-- USA A FUNÇÃO CENTRALIZADA
-
+        const client = await findClientInSgp(baseUrl, clientData);
         if (client) {
             const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const clientPageUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
@@ -192,15 +192,22 @@ async function searchClientInSgp() {
         } else {
             await openOrFocusSgpTab(`${baseUrl}/admin/`);
         }
+        success = true;
     } finally {
         isSearchRunning = false;
+        if (tabId) {
+            // Avisa a aba de origem que a operação terminou
+            chrome.tabs.sendMessage(tabId, { action: "sgpSearchComplete", success: success })
+                .catch(err => console.log("Não foi possível enviar mensagem para a aba do chatmix.", err));
+        }
     }
 }
 
-// MODIFICADO: Função de criação de ocorrência simplificada
-async function createOccurrenceInSgp() {
+// MODIFICADO: Aceita o ID da aba de origem para responder quando a tarefa terminar
+async function createOccurrenceInSgp(tabId) {
     if (isSearchRunning) return;
     isSearchRunning = true;
+    let success = false;
     try {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
         if (!isLoggedIn) {
@@ -208,16 +215,13 @@ async function createOccurrenceInSgp() {
             await openOrFocusSgpTab(loginUrl);
             return;
         }
-
         const { osText, ...clientData } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber", "osText"]);
-        const client = await findClientInSgp(baseUrl, clientData); // <-- USA A FUNÇÃO CENTRALIZADA
-
+        const client = await findClientInSgp(baseUrl, clientData); 
         if (client) {
             const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const occurrencePageUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
             await chrome.storage.local.set({ pendingOsText: osText });
             const sgpTab = await openOrFocusSgpTab(occurrencePageUrl, titleQuery, true);
-            
             chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
                 if (tabId === sgpTab.id && changeInfo.status === 'complete') {
                     chrome.tabs.sendMessage(sgpTab.id, { action: "fillSgpForm", osText: osText }, (response) => {
@@ -230,12 +234,18 @@ async function createOccurrenceInSgp() {
                     chrome.tabs.onUpdated.removeListener(listener);
                 }
             });
-            return sgpTab;
+            success = true;
         } else {
             await openOrFocusSgpTab(`${baseUrl}/admin/`);
+            success = true;
         }
     } finally {
         isSearchRunning = false;
+         if (tabId) {
+            // Avisa a aba de origem que a operação terminou
+            chrome.tabs.sendMessage(tabId, { action: "sgpCreateComplete", success: success })
+                .catch(err => console.log("Não foi possível enviar mensagem para a aba do chatmix.", err));
+        }
     }
 }
 
@@ -259,13 +269,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
             break;
         case "createOccurrenceInSgp":
-            createOccurrenceInSgp();
+            // MODIFICADO: Passa o ID da aba para a função
+            createOccurrenceInSgp(sender.tab.id);
             break;
         case "openInSgp":
-            searchClientInSgp();
+             // MODIFICADO: Passa o ID da aba para a função
+            searchClientInSgp(sender.tab.id);
             break;
     }
-    return true;
+    return true; // Mantém a porta de mensagem aberta para respostas assíncronas
 });
 
 chrome.action.onClicked.addListener((tab) => {
@@ -292,6 +304,7 @@ chrome.commands.onCommand.addListener(async (command) => {
         }
     }
 });
+
 const INJECTION_RULES = {
     CHATMIX: {
         matches: ["https://www.chatmix.com.br/v2/chat*"],
@@ -309,6 +322,7 @@ const INJECTION_RULES = {
         css: [],
     }
 };
+
 async function injectFiles(tabId, rule) {
     try {
         if (rule.css && rule.css.length > 0) {
@@ -337,3 +351,4 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         }
     }
 });
+

@@ -1,5 +1,5 @@
 // =================================================================================
-// == CHATMIX.JS (VERSÃO REESCRITA E CORRIGIDA)                                    ==
+// == CHATMIX.JS (VERSÃO REESCRITA E OTIMIZADA)                                    ==
 // == Responsável por injetar e controlar a UI dentro do site Chatmix.          ==
 // =================================================================================
 
@@ -17,6 +17,16 @@ const SELECTORS = {
     textarea: 'textarea.chat_textarea',
     messageSentContainer: 'justify-end',
     messageReceivedContainer: 'justify-start',
+    mainChatContainer: 'main.flex'
+};
+
+// NOVO: Um local central para guardar o texto original dos botões.
+const BUTTON_ORIGINAL_TEXT = {
+    'ati-copy-contact': '👤 Contato',
+    'ati-copy-cpf': '📄 CPF',
+    'ati-open-os': '📝 O.S',
+    'ati-copy-prompt': '🤖 Chat',
+    'ati-open-sgp': '↗️ SGP'
 };
 
 let osTemplates = [];
@@ -27,21 +37,17 @@ let persistentObserver;
 function findActiveChatHeader() { return document.querySelector(SELECTORS.chatHeader); }
 function findActiveChatBody() { return document.querySelector(SELECTORS.chatBody); }
 
-// [FUNÇÃO CORRIGIDA] Lógica de formatação do telefone restaurada
 function extractDataFromHeader() {
     const headerElement = findActiveChatHeader();
     if (!headerElement) return { firstName: "", fullName: "", phoneNumber: "" };
-
     const nameElement = headerElement.querySelector('h2.text-base');
     const phoneElement = headerElement.querySelector('span.text-sm');
-    
     const fullName = nameElement ? (nameElement.textContent || "").trim() : "";
     const firstName = fullName ? fullName.split(' ')[0].toUpperCase() : "";
-    
     let phoneNumber = "";
     if (phoneElement) {
-        const phoneDigits = (phoneElement.textContent || "").replace(/\D/g, ''); 
-        if (phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)) { 
+        const phoneDigits = (phoneElement.textContent || "").replace(/\D/g, '');
+        if (phoneDigits.startsWith('55') && (phoneDigits.length === 12 || phoneDigits.length === 13)) {
             const ddd = phoneDigits.substring(2, 4);
             const number = phoneDigits.substring(4);
             phoneNumber = `${ddd} ${number.slice(0, number.length - 4)}-${number.slice(number.length - 4)}`;
@@ -53,7 +59,6 @@ function extractDataFromHeader() {
             phoneNumber = phoneDigits;
         }
     }
-
     return { firstName, fullName, phoneNumber };
 }
 
@@ -70,7 +75,6 @@ function extractAndFormatConversation() {
     const assignmentKeyword = "atendimento atribuído ao atendente";
     let conversationStarted = false;
     const relevantTexts = [];
-
     for (const container of allMessageContainers) {
         const messageTextElement = container.querySelector(SELECTORS.messageParagraph);
         if (!messageTextElement) continue;
@@ -98,15 +102,23 @@ function extractAndFormatConversation() {
 
 // --- Funções de Ação dos Botões ---
 
+// MODIFICADO: Função de feedback agora é mais robusta
 function provideButtonFeedback(button, isSuccess) {
     if (!button) return;
-    const originalContent = button.innerHTML;
-    const originalClasses = button.className;
+
+    // Define o estado de feedback (checkmark ou X)
     button.innerHTML = isSuccess ? `<span>✔️</span>` : `<span>✖️</span>`;
+    button.className = 'action-btn'; // Reseta para a classe base
     button.classList.add(isSuccess ? 'action-btn--success' : 'action-btn--error');
+
+    // Após 1.5 segundos, restaura o botão para seu estado original
     setTimeout(() => {
-        button.innerHTML = originalContent;
-        button.className = originalClasses;
+        const originalText = BUTTON_ORIGINAL_TEXT[button.id];
+        if (originalText) {
+            button.innerHTML = originalText;
+        }
+        button.className = 'action-btn'; // Limpa as classes de sucesso/erro
+        button.disabled = false; // Garante que o botão seja reativado
     }, 1500);
 }
 
@@ -154,10 +166,8 @@ function openOSModal() {
     const chatBody = findActiveChatBody();
     const chatHeader = findActiveChatHeader();
     if (!chatBody || !chatHeader) return showNotification("Nenhum chat ativo para criar O.S.", true);
-    
     const clientData = extractDataFromHeader();
     clientData.cpfCnpj = findCPF(collectTextFromMessages());
-    
     showOSModal({
         allTemplates: osTemplates,
         extractChatFn: collectTextFromMessages,
@@ -165,18 +175,21 @@ function openOSModal() {
     });
 }
 
+// MODIFICADO: Lógica de carregamento agora está aqui
 async function openInSgp() {
     const button = document.getElementById('ati-open-sgp');
-    button.disabled = true;
-    button.textContent = 'Buscando...';
+    if (button.disabled) return; // Previne múltiplos cliques
 
-    showNotification("Buscando cliente no SGP...");
+    // Define o estado de carregando
+    button.innerHTML = `<span>Buscando...</span>`;
+    button.disabled = true;
 
     const clientData = extractDataFromHeader();
     clientData.cpfCnpj = findCPF(collectTextFromMessages());
-    
+
     if (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber) {
         showNotification("Nenhum dado (CPF, Nome ou Telefone) para buscar.", true);
+        // Restaura o botão imediatamente em caso de erro
         provideButtonFeedback(button, false);
         return;
     }
@@ -184,15 +197,10 @@ async function openInSgp() {
     try {
         await chrome.storage.local.set(clientData);
         chrome.runtime.sendMessage({ action: "openInSgp" });
-        provideButtonFeedback(button, true);
     } catch (error) {
         showNotification("Erro ao iniciar a busca no SGP.", true);
         provideButtonFeedback(button, false);
     }
-        setTimeout(() => {
-        button.disabled = false;
-        button.textContent = '↗️ SGP';
-    }, 2000);
 }
 
 async function handleCopyPromptClick() {
@@ -239,7 +247,7 @@ function insertReplyText(text) {
 }
 
 function renderReplyUI(container, groupedReplies, activeCategory = null) {
-    container.innerHTML = ''; 
+    container.innerHTML = '';
     if (activeCategory && groupedReplies[activeCategory]) {
         const backButton = document.createElement('button');
         backButton.className = 'qr-btn qr-btn--back';
@@ -249,7 +257,6 @@ function renderReplyUI(container, groupedReplies, activeCategory = null) {
             renderReplyUI(container, groupedReplies, null);
         });
         container.appendChild(backButton);
-
         groupedReplies[activeCategory].forEach(reply => {
             const button = document.createElement('button');
             button.className = 'qr-btn';
@@ -279,11 +286,11 @@ function injectUIElements() {
         container.id = "actionsContainerV2";
         sidebar.appendChild(container);
         container.innerHTML = `
-            <button class="action-btn" id="ati-copy-contact">👤 Contato</button>
-            <button class="action-btn" id="ati-copy-cpf">📄 CPF</button>
-            <button class="action-btn" id="ati-open-os">📝 O.S</button>
-            <button class="action-btn" id="ati-copy-prompt">🤖 Chat</button>
-            <button class="action-btn" id="ati-open-sgp">↗️ SGP</button>
+            <button class="action-btn" id="ati-copy-contact">${BUTTON_ORIGINAL_TEXT['ati-copy-contact']}</button>
+            <button class="action-btn" id="ati-copy-cpf">${BUTTON_ORIGINAL_TEXT['ati-copy-cpf']}</button>
+            <button class="action-btn" id="ati-open-os">${BUTTON_ORIGINAL_TEXT['ati-open-os']}</button>
+            <button class="action-btn" id="ati-copy-prompt">${BUTTON_ORIGINAL_TEXT['ati-copy-prompt']}</button>
+            <button class="action-btn" id="ati-open-sgp">${BUTTON_ORIGINAL_TEXT['ati-open-sgp']}</button>
         `;
         document.getElementById('ati-copy-contact').onclick = copyContactInfo;
         document.getElementById('ati-copy-cpf').onclick = copyCPFFromChat;
@@ -316,7 +323,6 @@ async function reloadAndInject() {
             resolve(response || []);
         });
     });
-
     document.getElementById('actionsContainerV2')?.remove();
     document.getElementById('atiQuickRepliesContainerV2')?.remove();
     injectUIElements();
@@ -336,18 +342,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.action === "executeCopy") {
         copyContactInfo();
     }
+    // MODIFICADO: Recebe a resposta do background e finaliza o feedback
+    else if (request.action === "sgpSearchComplete") {
+        const button = document.getElementById('ati-open-sgp');
+        if (button) {
+            provideButtonFeedback(button, request.success);
+        }
+    }
+    // Adicione um else if para "sgpCreateComplete" se o botão da modal também precisar disso
     return true;
 });
 
 
 (async function main() {
     applySiteTheme();
-    
     await reloadAndInject();
-    
     const observerCallback = () => injectUIElements();
     persistentObserver = new MutationObserver(observerCallback);
-    
-    
-    persistentObserver.observe(document.body, { childList: true, subtree: true });
+    const MAX_ATTEMPTS = 50;
+    let attempts = 0;
+    function setupObserver() {
+        const targetNode = document.querySelector(SELECTORS.mainChatContainer);
+        if (targetNode) {
+            console.log("ATI Extensão: Observador inteligente ativado em um alvo específico.");
+            persistentObserver.observe(targetNode, { childList: true });
+            return;
+        }
+        attempts++;
+        if (attempts < MAX_ATTEMPTS) {
+            setTimeout(setupObserver, 100);
+        } else {
+            console.warn("ATI Extensão: Alvo específico não encontrado após 5 segundos. Usando observador genérico (menos otimizado).");
+            persistentObserver.observe(document.body, { childList: true, subtree: true });
+        }
+    }
+    setupObserver();
 })();
+
