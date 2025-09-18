@@ -41,14 +41,23 @@ export function processDynamicPlaceholders(text) {
     if (typeof text !== 'string') return '';
     const hour = new Date().getHours();
     let saudacao = '';
+    let despedida = '';
 
-    if (hour >= 5 && hour < 12) saudacao = 'Bom dia';
-    else if (hour >= 12 && hour < 18) saudacao = 'Boa tarde';
-    else saudacao = 'Boa noite';
+    if (hour >= 5 && hour < 12) {
+        saudacao = 'Bom dia';
+        despedida = 'tenha um excelente dia';
+    } else if (hour >= 12 && hour < 18) {
+        saudacao = 'Boa tarde';
+        despedida = 'tenha uma excelente tarde';
+    } else {
+        saudacao = 'Boa noite';
+        despedida = 'tenha uma excelente noite';
+    }
 
-    return text.replace(/\[SAUDACAO\]/gi, saudacao);
+    return text
+        .replace(/\[SAUDACAO\]/gi, saudacao)
+        .replace(/\[DESPEDIDA\]/gi, despedida);
 }
-
 /**
  * Carrega as configurações de tema salvas e as aplica como variáveis CSS na página.
  */

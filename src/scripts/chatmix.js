@@ -167,6 +167,9 @@ function openOSModal() {
 
 async function openInSgp() {
     const button = document.getElementById('ati-open-sgp');
+    button.disabled = true;
+    button.textContent = 'Buscando...';
+
     showNotification("Buscando cliente no SGP...");
 
     const clientData = extractDataFromHeader();
@@ -186,6 +189,10 @@ async function openInSgp() {
         showNotification("Erro ao iniciar a busca no SGP.", true);
         provideButtonFeedback(button, false);
     }
+        setTimeout(() => {
+        button.disabled = false;
+        button.textContent = '↗️ SGP';
+    }, 2000);
 }
 
 async function handleCopyPromptClick() {

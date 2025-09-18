@@ -1,3 +1,5 @@
+// src/background.js (versão refatorada)
+
 // --- Configuração do Firebase ---
 const firebaseConfig = {
     apiKey: "AIzaSyB5wO0x-7NFmh6waMKzWzRew4ezfYOmYBI",
@@ -5,7 +7,6 @@ const firebaseConfig = {
     databaseURL: "https://site-ati-75d83-default-rtdb.firebaseio.com/",
     projectId: "site-ati-75d83"
 };
-
 // --- Funções de Lógica do Firebase (Usando API REST) ---
 async function fetchTemplatesFromFirebaseRest(username, dataType) {
   if (!username) {
@@ -36,20 +37,16 @@ async function loadAndCacheTemplates() {
             fetchTemplatesFromFirebaseRest(atendenteAtual, 'respostas'),
             fetchTemplatesFromFirebaseRest(atendenteAtual, 'modelos_os')
         ]);
-
         const quickReplies = quickRepliesData ? Object.values(quickRepliesData) : [];
         const osTemplates = osTemplatesData ? Object.values(osTemplatesData) : [];
-
         const allTemplates = [
             ...quickReplies.map(t => ({ ...t, category: 'quick_reply' })),
             ...osTemplates
         ];
-
         const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
         await chrome.storage.local.set({ cachedOsTemplates: validTemplates });
         console.log(`ATI Extensão: ${validTemplates.length} modelos de '${atendenteAtual}' carregados e salvos em cache.`);
         return validTemplates;
-
     } catch (error) {
         console.error("ATI Extensão: Falha crítica ao carregar do Firebase. Usando cache como fallback.", error);
         const { cachedOsTemplates } = await chrome.storage.local.get('cachedOsTemplates');
@@ -59,7 +56,6 @@ async function loadAndCacheTemplates() {
 
 // --- Lógica do SGP ---
 let isSearchRunning = false;
-
 async function performLoginCheck(baseUrl) {
     try {
         const response = await fetch(`${baseUrl}/admin/`, {
@@ -121,31 +117,25 @@ async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
         "https://sgp.atiinternet.com.br/*",
         "http://201.158.20.35:8000/*"
     ];
-
     let tabs = [];
     if (titleQuery) {
-        // Busca tabs do SGP que correspondam ao título da página (ex: "SGP - DOUGLAS ANTONIO CARVALHO DE SIQUEIRA (16677)")
         tabs = await chrome.tabs.query({ 
             url: sgpPatterns,
             title: `*${titleQuery}*`
         });
     } else {
-        // Sem titleQuery, busca qualquer aba do SGP
         tabs = await chrome.tabs.query({ url: sgpPatterns });
     }
 
     if (tabs.length > 0 && titleQuery) {
-        // Verifica se alguma aba corresponde exatamente ao titleQuery
         const matchingTab = tabs.find(tab => tab.title.includes(titleQuery));
         if (matchingTab) {
             if (forceUpdate) {
-                // Para criar O.S., atualiza a URL para a página de ocorrência
                 console.log(`ATI Extensão: [SGP] Atualizando aba do cliente "${titleQuery}" para URL: ${url}`);
                 await chrome.tabs.update(matchingTab.id, { url, active: true });
                 await chrome.windows.update(matchingTab.windowId, { focused: true });
                 return matchingTab;
             } else {
-                // Para busca, apenas foca a aba sem alterar a URL
                 console.log(`ATI Extensão: [SGP] Aba do cliente "${titleQuery}" já aberta (URL: ${matchingTab.url}). Apenas focando.`);
                 await chrome.windows.update(matchingTab.windowId, { focused: true });
                 await chrome.tabs.update(matchingTab.id, { active: true });
@@ -153,12 +143,34 @@ async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
             }
         }
     }
-
-    // Se nenhuma aba do cliente foi encontrada ou não há titleQuery, cria uma nova aba
     console.log(`ATI Extensão: [SGP] Nenhuma aba encontrada para "${titleQuery || 'página geral'}". Criando nova aba com URL: ${url}`);
     return await chrome.tabs.create({ url });
 }
 
+// NOVO: Função centralizada para buscar o cliente no SGP
+async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
+    const executeSearch = async (url) => {
+        try {
+            const response = await fetch(url, { credentials: 'include' });
+            const data = await response.json();
+            return (data && data.length > 0) ? data[0] : null;
+        } catch (error) {
+            console.error("ATI Extensão: [SGP] Erro na requisição para a API:", error);
+            return null;
+        }
+    };
+
+    let client = null;
+    if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
+    if (!client && fullName) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
+    if (!client && phoneNumber) {
+        const cleanPhone = phoneNumber.replace(/\D/g, '').substring(2);
+        client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
+    }
+    return client;
+}
+
+// MODIFICADO: Função de busca simplificada
 async function searchClientInSgp() {
     if (isSearchRunning) return;
     isSearchRunning = true;
@@ -169,30 +181,14 @@ async function searchClientInSgp() {
             await openOrFocusSgpTab(loginUrl);
             return;
         }
-        const { cpfCnpj, fullName, phoneNumber } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
-        const executeSearch = async (url) => {
-            try {
-                const response = await fetch(url, { credentials: 'include' });
-                const data = await response.json();
-                return (data && data.length > 0) ? data[0] : null;
-            } catch (error) {
-                console.error("ATI Extensão: [SGP] Erro na requisição para a API:", error);
-                return null;
-            }
-        };
-        let client = null;
-        if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
-        if (!client && fullName) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
-        if (!client && phoneNumber) {
-            const cleanPhone = phoneNumber.replace(/\D/g, '').substring(2);
-            client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
-        }
+
+        const clientData = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
+        const client = await findClientInSgp(baseUrl, clientData); // <-- USA A FUNÇÃO CENTRALIZADA
+
         if (client) {
             const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const clientPageUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
-            // Usa openOrFocusSgpTab sem forceUpdate para apenas focar a aba existente
-            const tab = await openOrFocusSgpTab(clientPageUrl, titleQuery);
-            return tab;
+            await openOrFocusSgpTab(clientPageUrl, titleQuery);
         } else {
             await openOrFocusSgpTab(`${baseUrl}/admin/`);
         }
@@ -201,6 +197,7 @@ async function searchClientInSgp() {
     }
 }
 
+// MODIFICADO: Função de criação de ocorrência simplificada
 async function createOccurrenceInSgp() {
     if (isSearchRunning) return;
     isSearchRunning = true;
@@ -211,30 +208,16 @@ async function createOccurrenceInSgp() {
             await openOrFocusSgpTab(loginUrl);
             return;
         }
-        const { cpfCnpj, fullName, phoneNumber, osText } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber", "osText"]);
-        const executeSearch = async (url) => {
-            try {
-                const response = await fetch(url, { credentials: 'include' });
-                const data = await response.json();
-                return (data && data.length > 0) ? data[0] : null;
-            } catch (error) {
-                console.error("ATI Extensão: [SGP] Erro na requisição para a API:", error);
-                return null;
-            }
-        };
-        let client = null;
-        if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
-        if (!client && fullName) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
-        if (!client && phoneNumber) {
-            const cleanPhone = phoneNumber.replace(/\D/g, '').substring(2);
-            client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
-        }
+
+        const { osText, ...clientData } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber", "osText"]);
+        const client = await findClientInSgp(baseUrl, clientData); // <-- USA A FUNÇÃO CENTRALIZADA
+
         if (client) {
             const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
             const occurrencePageUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
             await chrome.storage.local.set({ pendingOsText: osText });
-            const sgpTab = await openOrFocusSgpTab(occurrencePageUrl, titleQuery, true); // forceUpdate=true para criar O.S.
-            // Aguarda a aba carregar antes de enviar a mensagem
+            const sgpTab = await openOrFocusSgpTab(occurrencePageUrl, titleQuery, true);
+            
             chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
                 if (tabId === sgpTab.id && changeInfo.status === 'complete') {
                     chrome.tabs.sendMessage(sgpTab.id, { action: "fillSgpForm", osText: osText }, (response) => {
@@ -309,7 +292,6 @@ chrome.commands.onCommand.addListener(async (command) => {
         }
     }
 });
-
 const INJECTION_RULES = {
     CHATMIX: {
         matches: ["https://www.chatmix.com.br/v2/chat*"],
@@ -327,7 +309,6 @@ const INJECTION_RULES = {
         css: [],
     }
 };
-
 async function injectFiles(tabId, rule) {
     try {
         if (rule.css && rule.css.length > 0) {

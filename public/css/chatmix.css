@@ -5,19 +5,18 @@
 /* --- Contêiner de Ações --- */
 #actionsContainerV2 {
     display: grid;
-    grid-template-columns: 1fr 1fr; /* Cria uma grade de 2 colunas */
+    grid-template-columns: 1fr 1fr;
     gap: 10px;
-    /* [MODIFICADO] Apenas padding vertical para respeitar o alinhamento da sidebar */
     padding: 12px 0;
-    margin: 18px; 
+    margin: 18px;
     margin-bottom: 0px;
     z-index: 9999;
-    width: 90%; /* Garante que o contêiner ocupe toda a largura disponível */
+    width: 90%;
 }
 
 /* --- Estilo Base dos Botões (inspirado no site) --- */
 #actionsContainerV2 .action-btn {
-    background-color: var(--theme-button-bg, #007DFF); /* Cor de segurança AZUL */
+    background-color: var(--theme-button-bg, #007DFF);
     color: var(--theme-button-text, #FFFFFF);
     border: 1px solid transparent;
     font-family: var(--theme-font-primary, 'Orbitron', sans-serif);
@@ -25,27 +24,25 @@
     font-weight: bold;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 12px 5px; /* Padding vertical maior que horizontal */
+    padding: 12px 5px;
     cursor: pointer;
     transition: all 0.2s ease-in-out;
-    border-radius: 5px; /* Bordas arredondadas como no site */
+    border-radius: 5px;
     box-shadow: 0 0 10px 0px var(--theme-shadow-color, rgba(0,125,255,0.4)), 0 2px 4px rgba(0,0,0,0.2);
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    word-break: break-word; /* Evita que o texto quebre o layout */
-    min-width: 0; /* Permite que o flexbox encolha o item se necessário */
+    word-break: break-word;
+    min-width: 0;
 }
 
-/* --- Efeito de Hover (passar o mouse) --- */
 #actionsContainerV2 .action-btn:hover {
     background-color: var(--theme-button-hover-bg, #3399ff);
     transform: translateY(-2px);
     box-shadow: 0 0 15px 2px var(--theme-shadow-color, rgba(0,125,255,0.5)), 0 4px 8px rgba(0,0,0,0.3);
 }
 
-/* --- Garante que o último botão (se for ímpar) ocupe a largura total --- */
 #actionsContainerV2 .action-btn:last-child:nth-child(odd) {
     grid-column: span 2;
 }
@@ -102,3 +99,94 @@
     font-weight: bold;
 }
 
+/* =================================================================== */
+/* == TEMA DARK ATI PARA CHATMIX                                    == */
+/* =================================================================== */
+
+/* ---- ESTRUTURA E FUNDO ---- */
+
+html.dark header.dark\:bg-neutral-700 {
+    background-color: rgb(35, 35, 35) !important;
+}
+html.dark .chat_sidebar[data-v-2022d195] {
+    background-color: rgb(25, 25, 25) !important;
+}
+html.dark .chat_sidebar header .dark\:bg-neutral-700,
+html.dark .chat_sidebar header .dark\:bg-neutral-600,
+.bg-amber-100,
+.bg-slate-100 {
+    background-color: transparent !important;
+}
+html.dark .dark\:bg-neutral-500 {
+    background-color: rgb(45, 45, 45) !important;
+}
+html.dark .chat_sidebar input.dark\:border-gray-600 {
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+html.dark .bg-white {
+    background-color: rgb(40, 40, 40) !important;
+}
+/* ---- CORES DO TEMA E MENSAGENS ---- */
+
+html.dark body {
+    --chatPrimary: rgb(0, 120, 215) !important;
+}
+html.dark .bg-chat-primary {
+    background-color: rgb(0, 120, 215) !important;
+}
+html.dark .message_received:is(.dark *) {
+    background-color: rgba(50, 50, 50, 0.5) !important;
+}
+html.dark .bg-neutral-400 {
+    background-color: transparent !important;
+}
+html.dark .attendance_item.newMessage[data-v-14ec4674]:is(.dark *) {
+    background-color: rgba(0, 120, 215, 0.3) !important;
+}
+/* ---- TRAÇADO E DIVISÓRIAS ---- */
+
+html.dark header.dark\:bg-neutral-700,
+html.dark .chat_sidebar[data-v-2022d195] {
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+html.dark .dark\:bg-neutral-800\/50 {
+    border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+html.dark .chat_content .dark\:bg-neutral-500 {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+/* ---- CORREÇÕES DE BUGS E MELHORIAS ---- */
+
+html.dark * {
+    scrollbar-width: auto !important;
+}
+html, body {
+  overflow-x: hidden !important;
+}
+.chat_content + .h-screen[style*="width: 0px"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+html.dark .chat_content[data-v-6cea75da] {
+  position: relative;
+  z-index: 0;
+}
+html.dark .chat_content[data-v-6cea75da]::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgb(20, 20, 20);
+  z-index: -1;
+}
+html.dark .chat_sidebar[data-v-2022d195] {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+html.dark .chat_sidebar[data-v-2022d195] > section {
+    flex-grow: 1;
+    min-height: 0;
+}
+html.dark .chat_content .dark\:bg-neutral-500 .border-l-2 {
+    border-left-color: transparent !important;
+}
