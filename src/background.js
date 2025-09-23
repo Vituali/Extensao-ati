@@ -1,13 +1,25 @@
 // MODIFICADO: Importa a configuração de um local centralizado.
 import { firebaseConfig } from './firebase-config.js';
 
+// --- Funções Auxiliares ---
+function getCurrentFormattedDateTime() {
+    const now = new Date();
+    const day = String(now.getDate()).padStart(2, '0');
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = now.getFullYear();
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+}
+
+
 // --- Funções de Lógica do Firebase (Usando API REST) ---
 async function fetchTemplatesFromFirebaseRest(username, dataType) {
   if (!username) {
     console.log(`ATI Extensão: Não é possível buscar '${dataType}' sem um atendente logado.`);
     return null;
   }
-  // Agora usa a configuração importada.
   const dbURL = firebaseConfig.databaseURL;
   const url = `${dbURL}${dataType}/${username}.json`;
   try {
@@ -109,9 +121,6 @@ async function getSgpStatusWithCache() {
     return currentStatus;
 }
 
-// =======================================================================
-// == FUNÇÃO ATUALIZADA PARA GERENCIAR ABAS POR TÍTULO DA PÁGINA ==
-// =======================================================================
 async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
     const sgpPatterns = [
         "https://sgp.atiinternet.com.br/*",
@@ -148,7 +157,6 @@ async function openOrFocusSgpTab(url, titleQuery = null, forceUpdate = false) {
     return await chrome.tabs.create({ url });
 }
 
-// Função centralizada para buscar o cliente no SGP
 async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
     const executeSearch = async (url) => {
         try {
@@ -171,7 +179,6 @@ async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
     return client;
 }
 
-// MODIFICADO: Aceita o ID da aba de origem para responder quando a tarefa terminar
 async function searchClientInSgp(tabId) {
     if (isSearchRunning) return;
     isSearchRunning = true;
@@ -186,7 +193,8 @@ async function searchClientInSgp(tabId) {
         const clientData = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
         const client = await findClientInSgp(baseUrl, clientData);
         if (client) {
-            const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
+            const clientName = client.label.split(' - ')[0].trim().replace(/\s+/g, ' ');
+            const titleQuery = `${clientName} (${client.id})`;
             const clientPageUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
             await openOrFocusSgpTab(clientPageUrl, titleQuery);
         } else {
@@ -196,58 +204,166 @@ async function searchClientInSgp(tabId) {
     } finally {
         isSearchRunning = false;
         if (tabId) {
-            // Avisa a aba de origem que a operação terminou
             chrome.tabs.sendMessage(tabId, { action: "sgpSearchComplete", success: success })
                 .catch(err => console.log("Não foi possível enviar mensagem para a aba do chatmix.", err));
         }
     }
 }
 
-// MODIFICADO: Aceita o ID da aba de origem para responder quando a tarefa terminar
-async function createOccurrenceInSgp(tabId) {
-    if (isSearchRunning) return;
-    isSearchRunning = true;
-    let success = false;
+
+// =======================================================================
+// == FUNÇÕES DE CRIAÇÃO DE O.S.                                        ==
+// =======================================================================
+
+/**
+ * Busca os dados necessários (contratos, tipos de O.S.) para montar o modal.
+ */
+async function getSgpFormParams(clientData) {
+    const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+    if (!isLoggedIn) throw new Error("Você não está logado no SGP.");
+
+    const client = await findClientInSgp(baseUrl, clientData);
+    if (!client) throw new Error("Cliente não encontrado no SGP.");
+    
+    const addOccurrenceUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
+    const responsePage = await fetch(addOccurrenceUrl, { credentials: 'include' });
+    const pageHtml = await responsePage.text();
+
+    if (pageHtml.includes('id_username') && pageHtml.includes('id_password')) {
+        await chrome.storage.local.remove('sgp_status_cache');
+        throw new Error("Sua sessão no SGP expirou. Faça o login novamente.");
+    }
+    
+    const contracts = [];
+    const contractSelectRegex = /<select[^>]+id=['"]id_clientecontrato['"][^>]*>([\s\S]*?)<\/select>/;
+    const selectMatch = pageHtml.match(contractSelectRegex);
+    if (selectMatch && selectMatch[1]) {
+        const optionsHtml = selectMatch[1];
+        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
+        let match;
+        while ((match = optionRegex.exec(optionsHtml)) !== null) {
+            if (match[1]) {
+                contracts.push({ id: match[1], text: match[2].trim() });
+            }
+        }
+    }
+    if (contracts.length === 0) throw new Error("Nenhum contrato ativo encontrado para este cliente no SGP.");
+
+    const occurrenceTypes = [];
+    const typeSelectRegex = /<select[^>]+id=['"]id_tipo['"][^>]*>([\s\S]*?)<\/select>/;
+    const typeSelectMatch = pageHtml.match(typeSelectRegex);
+     if (typeSelectMatch && typeSelectMatch[1]) {
+        const optionsHtml = typeSelectMatch[1];
+        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
+        let match;
+        while ((match = optionRegex.exec(optionsHtml)) !== null) {
+            if (match[1]) {
+                occurrenceTypes.push({ id: match[1], text: match[2].trim().replace(/&nbsp;/g, ' ') });
+            }
+        }
+    }
+
+    return { contracts, occurrenceTypes, clientSgpId: client.id };
+}
+
+
+/**
+ * MODO DE DEPURACAO: Abre a aba do SGP e preenche o formulário para inspeção visual.
+ */
+async function createOccurrenceVisually(data) {
     try {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
-        if (!isLoggedIn) {
-            const loginUrl = `${baseUrl}/accounts/login/?next=/admin/`;
-            await openOrFocusSgpTab(loginUrl);
-            return;
-        }
-        const { osText, ...clientData } = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber", "osText"]);
-        const client = await findClientInSgp(baseUrl, clientData); 
-        if (client) {
-            const titleQuery = `${client.label.split(' - ')[0].trim()} (${client.id})`;
-            const occurrencePageUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
-            await chrome.storage.local.set({ pendingOsText: osText });
-            const sgpTab = await openOrFocusSgpTab(occurrencePageUrl, titleQuery, true);
-            chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-                if (tabId === sgpTab.id && changeInfo.status === 'complete') {
-                    chrome.tabs.sendMessage(sgpTab.id, { action: "fillSgpForm", osText: osText }, (response) => {
-                        if (chrome.runtime.lastError) {
-                            console.log("ATI Extensão: Aba do SGP é nova, o preenchimento ocorrerá ao carregar.");
-                        } else {
-                            console.log("ATI Extensão: Aba do SGP já estava aberta, preenchimento enviado por mensagem.");
-                        }
-                    });
-                    chrome.tabs.onUpdated.removeListener(listener);
-                }
+        if (!isLoggedIn) throw new Error("Você não está logado no SGP.");
+
+        const addOccurrenceUrl = `${baseUrl}/admin/atendimento/cliente/${data.clientSgpId}/ocorrencia/add/`;
+        
+        await chrome.storage.local.set({ sgpVisualFillPayload: data });
+
+        const newTab = await chrome.tabs.create({ url: addOccurrenceUrl, active: true });
+
+        chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+            if (tabId === newTab.id && changeInfo.status === 'complete') {
+                chrome.scripting.executeScript({
+                    target: { tabId: newTab.id },
+                    function: injectAndFillForm,
+                });
+                chrome.tabs.onUpdated.removeListener(listener);
+            }
+        });
+
+    } catch (error) {
+        console.error("ATI Extensão: Erro ao abrir SGP para preenchimento.", error);
+        const [tab] = await chrome.tabs.query({ active: true, url: "*://*.chatmix.com.br/*" });
+        if (tab) {
+            chrome.tabs.sendMessage(tab.id, { 
+                action: "backgroundCreateComplete", 
+                success: false,
+                message: error.message 
             });
-            success = true;
-        } else {
-            await openOrFocusSgpTab(`${baseUrl}/admin/`);
-            success = true;
-        }
-    } finally {
-        isSearchRunning = false;
-         if (tabId) {
-            // Avisa a aba de origem que a operação terminou
-            chrome.tabs.sendMessage(tabId, { action: "sgpCreateComplete", success: success })
-                .catch(err => console.log("Não foi possível enviar mensagem para a aba do chatmix.", err));
         }
     }
 }
+
+/**
+ * Função injetada na página do SGP para preenchimento.
+ */
+function injectAndFillForm() {
+    chrome.storage.local.get(['sgpVisualFillPayload', 'atendenteAtual'], ({ sgpVisualFillPayload, atendenteAtual }) => {
+        if (!sgpVisualFillPayload) {
+            console.warn('ATI Extensão: Não foram encontrados dados para preencher o formulário.');
+            return;
+        }
+
+        const data = sgpVisualFillPayload;
+        const ATTENDANTS_MAP = { 'VICTORH': '99', 'LUCASJ': '100', 'HELIO': '77', 'IGORMAGALHAES': '85', 'JEFFERSON': '62' };
+        const attendantId = ATTENDANTS_MAP[atendenteAtual] || '99';
+
+        const setValue = (selector, value, isCheckbox = false) => {
+            const element = document.querySelector(selector);
+            if (element) {
+                if (isCheckbox) {
+                    element.checked = value;
+                } else {
+                    element.value = value;
+                }
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+                console.log(`ATI Preenchimento: Campo '${selector}' definido como '${value}'.`);
+            } else {
+                console.warn(`ATI Preenchimento: Campo '${selector}' não foi encontrado.`);
+            }
+        };
+        
+        setTimeout(() => {
+            setValue('#id_clientecontrato', data.selectedContract);
+            setTimeout(() => {
+                setValue('#id_tipo', data.occurrenceType);
+                // MODIFICADO: Garante que o texto seja maiúsculo
+                setValue('#id_conteudo', data.osText.toUpperCase());
+                setValue('#id_responsavel', attendantId);
+                setValue('#id_setor', '2'); 
+                setValue('#id_metodo', '3'); 
+                setValue('#id_status', data.occurrenceStatus);
+                
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                const seconds = String(now.getSeconds()).padStart(2, '0');
+                const formattedDateTime = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+                setValue('#id_data_agendamento', formattedDateTime);
+
+                setValue('#id_os', data.shouldCreateOS, true);
+
+                console.log('ATI Extensão: Formulário preenchido para depuração. Verifique os campos e clique em "Cadastrar".');
+                
+                chrome.storage.local.remove('sgpVisualFillPayload');
+            }, 1500);
+        }, 500);
+    });
+}
+
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("ATI Extensão: Mensagem recebida no background:", request);
@@ -255,6 +371,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case "getTemplates":
             loadAndCacheTemplates().then(sendResponse);
             return true;
+        case "getSgpFormParams":
+            getSgpFormParams(request.data)
+                .then(response => sendResponse({success: true, data: response}))
+                .catch(error => sendResponse({success: false, message: error.message}));
+            return true;
+        case "createOccurrenceVisually":
+            createOccurrenceVisually(request.data);
+            break;
         case "userChanged":
         case "templatesUpdated":
             loadAndCacheTemplates().then(() => {
@@ -268,17 +392,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: "applyTheme" }).catch(() => { }));
             });
             break;
-        case "createOccurrenceInSgp":
-            // MODIFICADO: Passa o ID da aba para a função
-            createOccurrenceInSgp(sender.tab.id);
-            break;
         case "openInSgp":
-             // MODIFICADO: Passa o ID da aba para a função
             searchClientInSgp(sender.tab.id);
             break;
     }
-    return true; // Mantém a porta de mensagem aberta para respostas assíncronas
+    return true;
 });
+
+// --- Listeners de Ação e Comandos ---
 
 chrome.action.onClicked.addListener((tab) => {
     const panelUrl = "https://vituali.github.io/ATI/";
@@ -304,6 +425,8 @@ chrome.commands.onCommand.addListener(async (command) => {
         }
     }
 });
+
+// --- Injeção de Scripts ---
 
 const INJECTION_RULES = {
     CHATMIX: {
@@ -351,4 +474,3 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         }
     }
 });
-

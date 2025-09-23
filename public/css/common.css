@@ -13,13 +13,15 @@
     z-index: 10000;
     font-size: 14px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    font-family: var(--theme-font-secondary, Arial, sans-serif);
+    font-family: var(--theme-font-secondary);
 }
 .notification.success { background-color: var(--theme-success-color, #22C55E); }
 .notification.error { background-color: var(--theme-error-color, #EF4444); }
 
 
-/* --- Modal de O.S. Customizado (Agora usa variáveis de tema) --- */
+/* --- Modal de O.S. Customizado (Agora com temas Light/Dark) --- */
+
+/* Base Estrutural do Modal (comum a ambos os temas) */
 .ati-os-modal.modal-backdrop {
     position: fixed;
     top: 0; left: 0; width: 100%; height: 100%;
@@ -29,107 +31,180 @@
     backdrop-filter: blur(4px);
 }
 .ati-os-modal .modal-content {
-    /* MODIFICADO: Cor de fundo e texto agora usam os temas corretamente */
-    background: var(--theme-card-bg, #ffffff); 
-    color: var(--theme-text-primary, #212529);
     padding: 25px; 
     border-radius: 8px;
-    border: 1px solid var(--theme-modal-border-color, #dee2e6);
-    box-shadow: 0 0 20px 2px var(--theme-shadow-color, rgba(0,0,0,0.1)), 0 5px 15px rgba(0, 0, 0, 0.5); 
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); 
     width: 90%; max-width: 650px;
     max-height: 90vh; overflow-y: auto; 
     display: flex;
     flex-direction: column;
-    font-family: var(--theme-font-secondary, Arial, sans-serif);
+    font-family: var(--theme-font-secondary);
 }
 .ati-os-modal .modal-header {
     display: flex; justify-content: space-between; align-items: center;
-    border-bottom: 1px solid var(--theme-modal-border-color, #dee2e6); 
     padding-bottom: 15px;
     margin-bottom: 15px;
 }
 .ati-os-modal h3 { 
     margin: 0; 
-    color: var(--theme-heading-color, #007bff); 
     font-size: 1.25rem;
-    font-family: var(--theme-font-primary, 'Orbitron', sans-serif);
+    font-family: var(--theme-font-primary);
 }
 .ati-os-modal .modal-close-btn { 
     background: none; border: none; font-size: 1.8rem;
-    color: var(--theme-text-secondary, #6c757d); 
     cursor: pointer; 
 }
-.ati-os-modal .modal-close-btn:hover { color: var(--theme-heading-color, #007bff); }
-
 .ati-os-modal .modal-body label {
     display: block; margin-bottom: 8px;
     font-weight: bold;
-    color: var(--theme-text-secondary, #6c757d); 
     font-size: 0.9rem;
 }
 .ati-os-modal .modal-textarea {
     width: 100%; min-height: 120px; padding: 10px;
-    border: 1px solid var(--theme-modal-border-color, #ced4da);
     border-radius: 5px; margin-bottom: 20px; font-size: 14px; box-sizing: border-box;
     resize: vertical; 
-    background-color: var(--theme-card-bg-alt, #f8f9fa); 
-    color: var(--theme-text-primary, #212529);
+    /* MODIFICADO: Garante que o texto apareça em maiúsculas para o usuário */
     text-transform: uppercase;
 }
 .ati-os-modal .modal-suggestion {
-    background-color: rgba(0, 0, 0, 0.03);
-    border: 1px solid var(--theme-button-bg, #007bff);
     border-radius: 5px; padding: 15px; margin-bottom: 20px;
 }
 .ati-os-modal .modal-category-title {
     flex-basis: 100%; margin-top: 15px; margin-bottom: 10px; 
-    color: var(--theme-heading-color, #007bff);
-    font-size: 1rem; border-bottom: 1px dashed var(--theme-modal-border-color, #dee2e6);
+    font-size: 1rem;
     padding-bottom: 5px;
 }
 .ati-os-modal .modal-btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
-
 .ati-os-modal .template-btn {
     padding: 8px 16px; 
-    border: 1px solid var(--theme-modal-border-color, #ced4da); 
     border-radius: 20px;
     background-color: transparent; 
-    color: var(--theme-text-primary, #333);
     cursor: pointer; font-size: 13px;
     transition: all 0.2s;
 }
-.ati-os-modal .template-btn:hover { 
-    background-color: var(--theme-button-bg, #007bff); 
-    color: var(--theme-button-text, white); 
-    border-color: transparent; 
-}
-.ati-os-modal .template-btn--suggestion { 
-    background-color: var(--theme-button-bg, #007bff); 
-    color: var(--theme-button-text, white); 
-    border-color: transparent; 
-}
-.ati-os-modal .template-btn--suggestion:hover { 
-    background-color: var(--theme-button-hover-bg, #0056b3); 
-}
 .ati-os-modal .modal-footer {
     display: flex; justify-content: flex-end; gap: 10px;
-    margin-top: 20px; border-top: 1px solid var(--theme-modal-border-color, #dee2e6); padding-top: 20px;
+    margin-top: 20px; padding-top: 20px;
     margin-bottom: 0 !important;
 }
 .ati-os-modal .main-btn {
     padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
     font-weight: bold;
     font-size: 15px; transition: background-color 0.2s;
-    font-family: var(--theme-font-primary, 'Orbitron', sans-serif);
+    font-family: var(--theme-font-primary);
 }
-.ati-os-modal .main-btn--sgp { 
-    background-color: var(--theme-info-color, #3B82F6); 
-    color: white; 
+
+/* --- TEMA CLARO (LIGHT MODE) --- */
+html:not(.dark) .ati-os-modal .modal-content {
+    background: #ffffff;
+    border: 1px solid #dee2e6;
+    color: #212529;
 }
-.ati-os-modal .main-btn--sgp:hover { 
-    background-color: #3172d8;
+html:not(.dark) .ati-os-modal .modal-header { border-bottom: 1px solid #dee2e6; }
+html:not(.dark) .ati-os-modal h3 { color: #007bff; }
+html:not(.dark) .ati-os-modal .modal-close-btn { color: #6c757d; }
+html:not(.dark) .ati-os-modal .modal-close-btn:hover { color: #212529; }
+html:not(.dark) .ati-os-modal .modal-body label { color: #495057; }
+html:not(.dark) .ati-os-modal .modal-textarea {
+    background-color: #f8f9fa;
+    color: #212529;
+    border: 1px solid #ced4da;
 }
-.ati-os-modal .main-btn--confirm { background-color: var(--theme-success-color, #28a745); color: white; }
-.ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
-.ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
-.ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
+html:not(.dark) .ati-os-modal .modal-suggestion {
+    background-color: #e7f1ff;
+    border: 1px solid #b3d1ff;
+}
+html:not(.dark) .ati-os-modal .modal-category-title {
+    color: #007bff;
+    border-bottom: 1px dashed #ced4da;
+}
+html:not(.dark) .ati-os-modal .template-btn {
+    border: 1px solid #ced4da;
+    color: #212529;
+}
+html:not(.dark) .ati-os-modal .template-btn:hover {
+    background-color: #e9ecef;
+    border-color: #ced4da;
+}
+html:not(.dark) .ati-os-modal .template-btn--suggestion {
+    background-color: #007bff;
+    color: white;
+    border-color: #007bff;
+}
+html:not(.dark) .ati-os-modal .template-btn--suggestion:hover {
+    background-color: #0069d9;
+    border-color: #0062cc;
+}
+html:not(.dark) .ati-os-modal .modal-footer { border-top: 1px solid #dee2e6; }
+html:not(.dark) .ati-os-modal .main-btn--sgp { background-color: #3B82F6; color: white; }
+html:not(.dark) .ati-os-modal .main-btn--sgp:hover { background-color: #3172d8; }
+html:not(.dark) .ati-os-modal .main-btn--confirm { background-color: #28a745; color: white; }
+html:not(.dark) .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
+html:not(.dark) .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
+html:not(.dark) .ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
+
+
+/* --- TEMA ESCURO (DARK MODE) --- */
+html.dark .ati-os-modal .modal-content {
+    background: #2d2d2d;
+    border: 1px solid #555;
+    color: #e0e0e0;
+    box-shadow: 0 0 20px 2px var(--theme-shadow-color, rgba(0, 0, 0, 0.5)), 0 5px 15px rgba(0, 0, 0, 0.5); 
+}
+html.dark .ati-os-modal .modal-header { border-bottom: 1px solid #444; }
+html.dark .ati-os-modal h3 { color: var(--theme-heading-color, #0095ff); }
+html.dark .ati-os-modal .modal-close-btn { color: #888; }
+html.dark .ati-os-modal .modal-close-btn:hover { color: #fff; }
+html.dark .ati-os-modal .modal-body label { color: #aaa; }
+html.dark .ati-os-modal .modal-textarea {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    border-color: var(--theme-border-color, #007bff);
+}
+html.dark .ati-os-modal .modal-suggestion {
+    background-color: rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--theme-button-bg, #007bff);
+}
+html.dark .ati-os-modal .modal-category-title {
+    color: var(--theme-heading-color, #0095ff);
+    border-bottom: 1px dashed #555;
+}
+html.dark .ati-os-modal .template-btn {
+    border: 1px solid #555;
+    color: #ccc;
+    border-color: var(--theme-border-color, #007bff);
+}
+html.dark .ati-os-modal .template-btn:hover {
+    background-color: #555;
+    color: white;
+    border-color: var(--theme-border-color, #007bff);
+}
+html.dark .ati-os-modal .template-btn--suggestion {
+    background-color: var(--theme-button-bg, #007bff);
+    color: var(--theme-button-text, white);
+    border-color: var(--theme-button-bg, #007bff);
+}
+html.dark .ati-os-modal .template-btn--suggestion:hover {
+    background-color: var(--theme-button-bg, #0056b3);
+}
+html.dark .ati-os-modal .modal-footer { border-top: 1px solid #444; }
+html.dark .ati-os-modal .main-btn--sgp { background-color: var(--theme-info-color, #3B82F6); color: white; }
+html.dark .ati-os-modal .main-btn--sgp:hover { background-color: #3172d8; }
+html.dark .ati-os-modal .main-btn--confirm { background-color: var(--theme-success-color, #28a745); color: white; }
+html.dark .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
+html.dark .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
+html.dark .ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
+
+
+/* --- Quick Replies Fixes (Garante Cores nos Temas) --- */
+
+/* TEMA CLARO: Texto preto nos botões de resposta rápida */
+html:not(.dark) #atiQuickRepliesContainerV2 .qr-btn {
+    color: #000000 !important;
+}
+
+/* TEMA ESCURO: Texto branco nos botões de resposta rápida */
+html.dark #atiQuickRepliesContainerV2 .qr-btn {
+    color: #FFFFFF !important;
+}

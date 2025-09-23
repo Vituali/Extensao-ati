@@ -34,7 +34,7 @@
 }
 
 #actionsContainerV2 .action-btn:hover {
-    background-color: var(--theme-button-hover-bg, #3399ff);
+    background-color: var(--theme-border-color, #3399ff);
     transform: translateY(-2px);
     box-shadow: 0 0 15px 2px var(--theme-shadow-color, rgba(0,125,255,0.5)), 0 4px 8px rgba(0,0,0,0.3);
 }
@@ -78,7 +78,7 @@
 #atiQuickRepliesContainerV2 .qr-btn {
     padding: 6px 14px;
     border-radius: 16px;
-    border: 1px solid var(--theme-modal-border-color, #555);
+    border: 1px solid var(--theme-border-color, #555);
     background-color: transparent;
     color: var(--theme-text-primary, #333);
     cursor: pointer;
@@ -125,7 +125,7 @@ html.dark .bg-white {
 /* ---- CORES DO TEMA E MENSAGENS ---- */
 
 html.dark body {
-    --chatPrimary: rgb(0, 120, 215) !important;
+    --chatPrimary: rgba(0, 110, 255, 0.377) !important;
 }
 html.dark .bg-chat-primary {
     background-color: var(--chatPrimary) !important;
@@ -134,7 +134,7 @@ html.dark .message_received:is(.dark *) {
     background-color: rgba(50, 50, 50, 0.5) !important;
 }
 html.dark .bg-neutral-400 {
-    background-color: transparent !important;
+    background-color: rgba(179, 179, 179, 0.377) !important;
 }
 
 /* MODIFICADO: Controle aprimorado do fundo e hover dos itens de atendimento */

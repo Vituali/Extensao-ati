@@ -62,14 +62,21 @@ export function processDynamicPlaceholders(text) {
  * Carrega as configurações de tema salvas e as aplica como variáveis CSS na página.
  */
 export function applySiteTheme() {
+    // MODIFICADO: Adicionado 'chatPrimaryAlpha' aos padrões
     const defaultTheme = {
         isDarkMode: true,
         neonBorders: true,
         borderColor: '#007DFF',
         textColor: '#E5E5E5',
+        chatPrimaryAlpha: 0.377 // Valor padrão para a transparência
     };
+
     chrome.storage.local.get('atiSiteTheme', ({ atiSiteTheme }) => {
         const theme = atiSiteTheme || defaultTheme;
+        
+        // MODIFICADO: Pega o valor da transparência salvo, ou usa o padrão
+        const chatPrimaryAlpha = theme.chatPrimaryAlpha ?? defaultTheme.chatPrimaryAlpha;
+
         const styleId = 'ati-site-theme-styles';
         let styleTag = document.getElementById(styleId);
         if (!styleTag) {
@@ -85,7 +92,7 @@ export function applySiteTheme() {
         };
         const contrastColor = getLuminance(theme.borderColor) > 128 ? '#111' : '#FFF';
         
-        // Define as variáveis CSS que serão usadas pelos arquivos .css
+        // MODIFICADO: O conteúdo da tag de estilo agora inclui a regra de transparência dinâmica
         styleTag.textContent = `
             :root {
                 --theme-font-primary: 'Orbitron', sans-serif;
@@ -102,6 +109,13 @@ export function applySiteTheme() {
                 --theme-shadow-color: ${theme.isDarkMode ? theme.borderColor + '66' : '#00000033'};
                 --theme-button-hover-bg: ${contrastColor === '#FFF' ? '#3399ff' : '#0056b3'};
             }
+
+            /* NOVO: Regra dinâmica que usa o valor do slider do painel */
+            ${theme.isDarkMode ? `
+            html.dark body {
+                --chatPrimary: rgba(0, 110, 255, ${chatPrimaryAlpha}) !important;
+            }
+            ` : ''}
         `;
     });
 }
@@ -145,3 +159,4 @@ function isValidCNPJ(cnpj) {
     result = sum % 11 < 2 ? 0 : 11 - sum % 11;
     return result == digits.charAt(1);
 }
+

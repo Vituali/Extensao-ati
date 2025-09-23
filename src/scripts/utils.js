@@ -2,6 +2,61 @@ import { processDynamicPlaceholders } from './logic.js';
 
 const ATI_EXTENSION_CONTAINER_ID = 'ati-extension-root-container';
 
+/**
+ * Injeta os estilos CSS necessários para o dropdown com busca.
+ */
+function injectSearchableDropdownCSS() {
+    const styleId = 'ati-searchable-dropdown-style';
+    if (document.getElementById(styleId)) return;
+
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.textContent = `
+        .searchable-select-container {
+            position: relative;
+        }
+        .searchable-options-list {
+            display: none;
+            position: absolute;
+            background-color: #ffffff;
+            color: #212529;
+            width: 100%;
+            border: 1px solid #ced4da;
+            border-radius: 5px;
+            z-index: 10001; /* Garante que fique sobre outros elementos do modal */
+            max-height: 150px;
+            overflow-y: auto;
+            box-sizing: border-box;
+            margin-top: -1px;
+        }
+        html.dark .searchable-options-list {
+            background-color: #3a3a3a;
+            border-color: #555;
+            color: #e0e0e0;
+        }
+        .searchable-option {
+            padding: 8px 12px;
+            cursor: pointer;
+            border-bottom: 1px solid #dee2e6;
+        }
+        html.dark .searchable-option {
+            border-bottom: 1px solid #444;
+        }
+        .searchable-option:last-child {
+            border-bottom: none;
+        }
+        .searchable-option:hover {
+            background-color: #e9ecef;
+        }
+        html.dark .searchable-option:hover {
+            background-color: #555;
+            color: white;
+        }
+    `;
+    document.head.appendChild(style);
+}
+
+
 function getOrCreateExtensionContainer() {
     let container = document.getElementById(ATI_EXTENSION_CONTAINER_ID);
     if (!container) {
@@ -70,11 +125,14 @@ export function createModal({ title, bodyHTML, footerButtons }) {
                     closeModal();
                     return;
                 }
-                const data = {};
-                const textarea = modalContent.querySelector('.modal-textarea');
-                const radio = modalContent.querySelector('input[type="radio"]:checked');
-                if (textarea) data.textValue = textarea.value;
-                if (radio) data.selectedValue = radio.value;
+                const isStatusClosed = modalContent.querySelector('#occurrenceStatusCheckbox')?.checked;
+                const data = {
+                    osText: modalContent.querySelector('#osTextArea')?.value,
+                    selectedContract: modalContent.querySelector('input[name="selected_contract"]:checked')?.value,
+                    occurrenceType: modalContent.querySelector('#occurrenceTypeSelectedValue')?.value, // Modificado para pegar do campo escondido
+                    shouldCreateOS: modalContent.querySelector('#shouldCreateOSCheckbox')?.checked,
+                    occurrenceStatus: isStatusClosed ? '1' : '0', // 1 para Encerrada, 0 para Aberta
+                };
                 modalBackdrop.remove();
                 resolve({ action, data });
             });
@@ -86,20 +144,16 @@ export function createModal({ title, bodyHTML, footerButtons }) {
 }
 
 
-export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
+export async function showOSModal({ allTemplates, extractChatFn, clientData, sgpData }) {
+    injectSearchableDropdownCSS(); // Garante que os estilos estejam presentes
     const clientChatTexts = extractChatFn();
     const suggestedTemplate = findSuggestedTemplate(clientChatTexts, allTemplates);
     const { firstName, phoneNumber } = clientData;
     const osBaseText = `${phoneNumber || ''} ${firstName || ''} | `;
     const osOnlyTemplates = allTemplates.filter(t => t.category !== 'quick_reply');
 
-    // =======================================================================
-    // == CORREÇÃO APLICADA AQUI                                            ==
-    // =======================================================================
-    // Alterado de 't.subCategory' para 't.category' para corresponder
-    // à forma como o seu site salva os dados no Firebase.
     const templatesByCategory = osOnlyTemplates.reduce((acc, t) => {
-        const category = t.category || 'Outros'; // <-- Linha corrigida
+        const category = t.category || 'Outros';
         (acc[category] = acc[category] || []).push(t);
         return acc;
     }, {});
@@ -116,18 +170,60 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
         `<div class="modal-suggestion"><strong>Sugestão:</strong><button class="template-btn template-btn--suggestion" data-template-text="${suggestedTemplate.text.replace(/"/g, '&quot;')}">${suggestedTemplate.title}</button></div>` :
         '';
 
+    let contractHTML = '';
+    if (sgpData.contracts.length > 1) {
+        contractHTML = `<h4 class="modal-category-title">Selecione o Contrato</h4><div class="modal-btn-group">` +
+            sgpData.contracts.map((contract, index) => `
+                <label class="template-btn" style="display: block; text-align: left; width: 100%;">
+                    <input type="radio" name="selected_contract" value="${contract.id}" ${index === 0 ? 'checked' : ''}>
+                    <span>${contract.text}</span>
+                </label>
+            `).join('') + `</div>`;
+    }
+
+    // MODIFICADO: HTML para o dropdown com busca
+    const occurrenceTypesHTML = `
+        <h4 class="modal-category-title">Tipo de Ocorrência</h4>
+        <div class="searchable-select-container">
+            <input type="text" id="occurrenceTypeSearchInput" class="modal-textarea" placeholder="Pesquisar tipo..." autocomplete="off">
+            <input type="hidden" id="occurrenceTypeSelectedValue">
+            <div id="occurrenceTypeOptions" class="searchable-options-list">
+                ${sgpData.occurrenceTypes.map(type => `<div class="searchable-option" data-value="${type.id}">${type.text}</div>`).join('')}
+            </div>
+        </div>
+    `;
+    
+    const statusCheckboxHTML = `
+        <div style="margin-top: 15px; display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center;">
+             <label>
+                <input type="checkbox" id="occurrenceStatusCheckbox" checked>
+                <span>Ocorrência Encerrada?</span>
+            </label>
+             <label>
+                <input type="checkbox" id="shouldCreateOSCheckbox">
+                <span>Gerar O.S.?</span>
+            </label>
+        </div>`;
+
+
     const modalConfig = {
         title: 'Criar Ordem de Serviço',
         bodyHTML: `
             ${suggestionHTML}
-            <label for="osTextArea">Descrição da O.S.:</label>
+            ${contractHTML}
+            ${occurrenceTypesHTML}
+            
+            <label for="osTextArea" style="margin-top: 15px; display: block;">Descrição:</label>
             <textarea id="osTextArea" class="modal-textarea"></textarea>
-            <div class="modal-templates-container"><strong>Modelos:</strong>${modelsHTML}</div>
+
+            ${statusCheckboxHTML}
+
+            <div class="modal-templates-container" style="margin-top: 20px;"><strong>Modelos:</strong>${modelsHTML}</div>
         `,
         footerButtons: [
             { text: 'Cancelar', className: 'main-btn--cancel', value: 'cancel' },
-            { text: 'Copiar O.S.', className: 'main-btn--confirm', value: 'copy' },
-            { text: 'Criar no SGP', className: 'main-btn--sgp', value: 'send_sgp' }
+            { text: 'Copiar', className: 'main-btn--confirm', value: 'copy' },
+            { text: 'Preencher no SGP', className: 'main-btn--sgp', value: 'fill_sgp_debug' }
         ]
     };
 
@@ -137,6 +233,7 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
         const osTextArea = modalElement.querySelector('#osTextArea');
         osTextArea.value = processDynamicPlaceholders(osBaseText).toUpperCase();
 
+        // Lógica dos modelos de O.S.
         modalElement.querySelectorAll('.template-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const templateText = btn.getAttribute('data-template-text');
@@ -146,27 +243,87 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData }) {
             });
         });
 
+        // NOVO: Lógica para o dropdown com busca
+        const searchInput = modalElement.querySelector('#occurrenceTypeSearchInput');
+        const hiddenInput = modalElement.querySelector('#occurrenceTypeSelectedValue');
+        const optionsContainer = modalElement.querySelector('#occurrenceTypeOptions');
+        const allOptions = optionsContainer.querySelectorAll('.searchable-option');
+
+        // Define um valor padrão (o primeiro da lista)
+        if (sgpData.occurrenceTypes.length > 0) {
+            searchInput.value = sgpData.occurrenceTypes[0].text;
+            hiddenInput.value = sgpData.occurrenceTypes[0].id;
+        }
+
+        searchInput.addEventListener('focus', () => {
+            optionsContainer.style.display = 'block';
+            searchInput.select();
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchInput.contains(e.target) && !optionsContainer.contains(e.target)) {
+                 optionsContainer.style.display = 'none';
+            }
+        });
+
+        searchInput.addEventListener('input', () => {
+            const filter = searchInput.value.toUpperCase();
+            hiddenInput.value = ''; // Limpa o valor selecionado enquanto digita
+            allOptions.forEach(option => {
+                const txtValue = option.textContent || option.innerText;
+                if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                    option.style.display = "";
+                } else {
+                    option.style.display = "none";
+                }
+            });
+        });
+
+        allOptions.forEach(option => {
+            option.addEventListener('mousedown', (e) => { // Usar mousedown para executar antes do 'blur' do input
+                e.preventDefault();
+                const selectedValue = option.getAttribute('data-value');
+                const selectedText = option.innerText;
+                hiddenInput.value = selectedValue;
+                searchInput.value = selectedText;
+                optionsContainer.style.display = 'none';
+            });
+        });
+
+        // Aguarda a ação do usuário
         const userAction = await resultPromise;
-        const osText = userAction.data.textValue.toUpperCase();
+        
+        const submissionData = {
+            ...clientData,
+            clientSgpId: sgpData.clientSgpId,
+            osText: userAction.data.osText,
+            selectedContract: userAction.data.selectedContract || sgpData.contracts[0]?.id,
+            occurrenceType: userAction.data.occurrenceType,
+            shouldCreateOS: userAction.data.shouldCreateOS,
+            occurrenceStatus: userAction.data.occurrenceStatus
+        };
 
         if (userAction.action === 'copy') {
-            await navigator.clipboard.writeText(osText);
+            await navigator.clipboard.writeText(submissionData.osText);
             showNotification("O.S. copiada com sucesso!");
-        } else if (userAction.action === 'send_sgp') {
-            if (!osText || osText.trim() === '|') {
-                showNotification("A descrição da O.S. está vazia.", true);
-                return;
+
+        } else if (userAction.action === 'fill_sgp_debug') {
+            if (!submissionData.osText || submissionData.osText.trim() === '|') {
+                return showNotification("A descrição da O.S. está vazia.", true);
             }
-            if (!clientData || (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber)) {
-                showNotification("Nenhum dado do cliente encontrado para buscar no SGP.", true);
-                return;
+            if (!submissionData.selectedContract) {
+                return showNotification("Nenhum contrato foi selecionado.", true);
             }
-            showNotification("Preparando para abrir SGP...");
-            await chrome.storage.local.set({ ...clientData, osText: osText });
-            chrome.runtime.sendMessage({ action: "createOccurrenceInSgp" });
+            if (!submissionData.occurrenceType) { // Validação extra
+                return showNotification("Selecione um Tipo de Ocorrência válido.", true);
+            }
+            showNotification("Abrindo SGP para preenchimento de depuração...");
+            chrome.runtime.sendMessage({ action: "createOccurrenceVisually", data: submissionData });
         }
     } catch (error) {
-        console.log("ATI Extensão: Modal fechado ou ação cancelada.");
+        if (error.message !== 'cancel') {
+            console.log("ATI Extensão: Modal fechado ou ação cancelada.", error);
+        }
     }
 }
 

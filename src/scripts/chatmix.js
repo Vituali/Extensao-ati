@@ -20,7 +20,6 @@ const SELECTORS = {
     mainChatContainer: 'main.flex'
 };
 
-// NOVO: Um local central para guardar o texto original dos botões.
 const BUTTON_ORIGINAL_TEXT = {
     'ati-copy-contact': '👤 Contato',
     'ati-copy-cpf': '📄 CPF',
@@ -102,23 +101,20 @@ function extractAndFormatConversation() {
 
 // --- Funções de Ação dos Botões ---
 
-// MODIFICADO: Função de feedback agora é mais robusta
 function provideButtonFeedback(button, isSuccess) {
     if (!button) return;
 
-    // Define o estado de feedback (checkmark ou X)
     button.innerHTML = isSuccess ? `<span>✔️</span>` : `<span>✖️</span>`;
-    button.className = 'action-btn'; // Reseta para a classe base
+    button.className = 'action-btn';
     button.classList.add(isSuccess ? 'action-btn--success' : 'action-btn--error');
 
-    // Após 1.5 segundos, restaura o botão para seu estado original
     setTimeout(() => {
         const originalText = BUTTON_ORIGINAL_TEXT[button.id];
         if (originalText) {
             button.innerHTML = originalText;
         }
-        button.className = 'action-btn'; // Limpa as classes de sucesso/erro
-        button.disabled = false; // Garante que o botão seja reativado
+        button.className = 'action-btn';
+        button.disabled = false;
     }, 1500);
 }
 
@@ -162,25 +158,47 @@ function copyCPFFromChat() {
     }
 }
 
-function openOSModal() {
+async function openOSModal() {
+    const button = document.getElementById('ati-open-os');
     const chatBody = findActiveChatBody();
     const chatHeader = findActiveChatHeader();
-    if (!chatBody || !chatHeader) return showNotification("Nenhum chat ativo para criar O.S.", true);
-    const clientData = extractDataFromHeader();
-    clientData.cpfCnpj = findCPF(collectTextFromMessages());
-    showOSModal({
-        allTemplates: osTemplates,
-        extractChatFn: collectTextFromMessages,
-        clientData,
-    });
+
+    if (!chatBody || !chatHeader) {
+        return showNotification("Nenhum chat ativo para criar O.S.", true);
+    }
+    
+    button.disabled = true;
+    button.innerHTML = "<span>Buscando...</span>";
+    
+    try {
+        const clientData = extractDataFromHeader();
+        clientData.cpfCnpj = findCPF(collectTextFromMessages());
+        
+        const response = await chrome.runtime.sendMessage({ action: "getSgpFormParams", data: clientData });
+
+        if (response && response.success) {
+            showOSModal({
+                allTemplates: osTemplates,
+                extractChatFn: collectTextFromMessages,
+                clientData,
+                sgpData: response.data,
+            });
+        } else {
+            showNotification(response.message || "Erro ao buscar dados do SGP.", true);
+        }
+    } catch (error) {
+        showNotification("Falha ao comunicar com a extensão.", true);
+        console.error("Erro ao abrir modal de O.S.:", error);
+    } finally {
+        button.disabled = false;
+        button.innerHTML = BUTTON_ORIGINAL_TEXT['ati-open-os'];
+    }
 }
 
-// MODIFICADO: Lógica de carregamento agora está aqui
 async function openInSgp() {
     const button = document.getElementById('ati-open-sgp');
-    if (button.disabled) return; // Previne múltiplos cliques
+    if (button.disabled) return;
 
-    // Define o estado de carregando
     button.innerHTML = `<span>Buscando...</span>`;
     button.disabled = true;
 
@@ -189,7 +207,6 @@ async function openInSgp() {
 
     if (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber) {
         showNotification("Nenhum dado (CPF, Nome ou Telefone) para buscar.", true);
-        // Restaura o botão imediatamente em caso de erro
         provideButtonFeedback(button, false);
         return;
     }
@@ -342,14 +359,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     } else if (request.action === "executeCopy") {
         copyContactInfo();
     }
-    // MODIFICADO: Recebe a resposta do background e finaliza o feedback
     else if (request.action === "sgpSearchComplete") {
         const button = document.getElementById('ati-open-sgp');
         if (button) {
             provideButtonFeedback(button, request.success);
         }
     }
-    // Adicione um else if para "sgpCreateComplete" se o botão da modal também precisar disso
+    else if (request.action === "backgroundActionComplete") {
+        showNotification(request.message, !request.success);
+    }
     return true;
 });
 
