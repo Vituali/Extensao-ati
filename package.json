@@ -26,9 +26,10 @@
   "homepage": "https://github.com/Vituali/Extensao-ati#readme",
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "vite": "^7.1.5"
+    "vite": "^7.1.7"
   },
   "dependencies": {
-    "firebase": "^12.2.1"
+    "firebase": "^12.2.1",
+    "node.js": "^0.0.1-security"
   }
 }

@@ -5,12 +5,8 @@ export default defineConfig({
   publicDir: 'public',
   build: {
     outDir: resolve(__dirname, 'dist'),
-    // Alterado para 'false' para impedir que este build apague os arquivos dos outros.
-    emptyOutDir: false,
-    watch: {
-      include: ['src/**', 'public/**'],
-      exclude: 'node_modules/**',
-    },
+    // Corrigido: A opção 'emptyOutDir' foi movida para o build principal para limpar a pasta 'dist' apenas uma vez.
+    emptyOutDir: true,
     rollupOptions: {
       input: {
         background: resolve(__dirname, 'src/background.js'),
