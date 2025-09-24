@@ -1,210 +1,396 @@
-/* =================================================================== */
-/* == ARQUIVO DE ESTILOS COMUNS (REVISADO) - ATI EXTENSÃO           == */
-/* =================================================================== */
+// Importa a configuração de um local centralizado.
+import { firebaseConfig } from './firebase-config.js';
 
-/* --- Notificações --- */
-.notification {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 12px 20px;
-    border-radius: 8px;
-    color: white;
-    z-index: 10000;
-    font-size: 14px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    font-family: var(--theme-font-secondary);
-}
-.notification.success { background-color: var(--theme-success-color, #22C55E); }
-.notification.error { background-color: var(--theme-error-color, #EF4444); }
+// --- Funções de Lógica do Firebase (Usando API REST) ---
 
-
-/* --- Modal de O.S. Customizado (Agora com temas Light/Dark) --- */
-
-/* Base Estrutural do Modal (comum a ambos os temas) */
-.ati-os-modal.modal-backdrop {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background-color: rgba(0, 0, 0, 0.7);
-    display: flex; justify-content: center; align-items: center;
-    z-index: 10000;
-    backdrop-filter: blur(4px);
-}
-.ati-os-modal .modal-content {
-    padding: 25px; 
-    border-radius: 8px;
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5); 
-    width: 90%; max-width: 650px;
-    max-height: 90vh; overflow-y: auto; 
-    display: flex;
-    flex-direction: column;
-    font-family: var(--theme-font-secondary);
-}
-.ati-os-modal .modal-header {
-    display: flex; justify-content: space-between; align-items: center;
-    padding-bottom: 15px;
-    margin-bottom: 15px;
-}
-.ati-os-modal h3 { 
-    margin: 0; 
-    font-size: 1.25rem;
-    font-family: var(--theme-font-primary);
-}
-.ati-os-modal .modal-close-btn { 
-    background: none; border: none; font-size: 1.8rem;
-    cursor: pointer; 
-}
-.ati-os-modal .modal-body label {
-    display: block; margin-bottom: 8px;
-    font-weight: bold;
-    font-size: 0.9rem;
-}
-.ati-os-modal .modal-textarea {
-    width: 100%; min-height: 120px; padding: 10px;
-    border-radius: 5px; margin-bottom: 20px; font-size: 14px; box-sizing: border-box;
-    resize: vertical; 
-    /* MODIFICADO: Garante que o texto apareça em maiúsculas para o usuário */
-    text-transform: uppercase;
-}
-.ati-os-modal .modal-suggestion {
-    border-radius: 5px; padding: 15px; margin-bottom: 20px;
-}
-.ati-os-modal .modal-category-title {
-    flex-basis: 100%; margin-top: 15px; margin-bottom: 10px; 
-    font-size: 1rem;
-    padding-bottom: 5px;
-}
-.ati-os-modal .modal-btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
-.ati-os-modal .template-btn {
-    padding: 8px 16px; 
-    border-radius: 20px;
-    background-color: transparent; 
-    cursor: pointer; font-size: 13px;
-    transition: all 0.2s;
-}
-.ati-os-modal .modal-footer {
-    display: flex; justify-content: flex-end; gap: 10px;
-    margin-top: 20px; padding-top: 20px;
-    margin-bottom: 0 !important;
-}
-.ati-os-modal .main-btn {
-    padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
-    font-weight: bold;
-    font-size: 15px; transition: background-color 0.2s;
-    font-family: var(--theme-font-primary);
+/**
+ * Busca dados genéricos do Firebase via API REST.
+ * @param {string} path O caminho para os dados (ex: 'atendentes' ou 'respostas/victorh').
+ * @returns {Promise<object|null>} Os dados encontrados ou nulo.
+ */
+async function fetchFromFirebaseRest(path) {
+  if (!path) return null;
+  const dbURL = firebaseConfig.databaseURL;
+  const url = `${dbURL}${path}.json`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Erro de rede: ${response.statusText}`);
+    return await response.json();
+  } catch (error) {
+    console.error(`ATI Extensão: Falha ao buscar dados em '${path}'.`, error);
+    throw error;
+  }
 }
 
-/* --- TEMA CLARO (LIGHT MODE) --- */
-html:not(.dark) .ati-os-modal .modal-content {
-    background: #ffffff;
-    border: 1px solid #dee2e6;
-    color: #212529;
-}
-html:not(.dark) .ati-os-modal .modal-header { border-bottom: 1px solid #dee2e6; }
-html:not(.dark) .ati-os-modal h3 { color: #007bff; }
-html:not(.dark) .ati-os-modal .modal-close-btn { color: #6c757d; }
-html:not(.dark) .ati-os-modal .modal-close-btn:hover { color: #212529; }
-html:not(.dark) .ati-os-modal .modal-body label { color: #495057; }
-html:not(.dark) .ati-os-modal .modal-textarea {
-    background-color: #f8f9fa;
-    color: #212529;
-    border: 1px solid #ced4da;
-}
-html:not(.dark) .ati-os-modal .modal-suggestion {
-    background-color: #e7f1ff;
-    border: 1px solid #b3d1ff;
-}
-html:not(.dark) .ati-os-modal .modal-category-title {
-    color: #007bff;
-    border-bottom: 1px dashed #ced4da;
-}
-html:not(.dark) .ati-os-modal .template-btn {
-    border: 1px solid #ced4da;
-    color: #212529;
-}
-html:not(.dark) .ati-os-modal .template-btn:hover {
-    background-color: #e9ecef;
-    border-color: #ced4da;
-}
-html:not(.dark) .ati-os-modal .template-btn--suggestion {
-    background-color: #007bff;
-    color: white;
-    border-color: #007bff;
-}
-html:not(.dark) .ati-os-modal .template-btn--suggestion:hover {
-    background-color: #0069d9;
-    border-color: #0062cc;
-}
-html:not(.dark) .ati-os-modal .modal-footer { border-top: 1px solid #dee2e6; }
-html:not(.dark) .ati-os-modal .main-btn--sgp { background-color: #3B82F6; color: white; }
-html:not(.dark) .ati-os-modal .main-btn--sgp:hover { background-color: #3172d8; }
-html:not(.dark) .ati-os-modal .main-btn--confirm { background-color: #28a745; color: white; }
-html:not(.dark) .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
-html:not(.dark) .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
-html:not(.dark) .ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
-
-
-/* --- TEMA ESCURO (DARK MODE) --- */
-html.dark .ati-os-modal .modal-content {
-    background: #2d2d2d;
-    border: 1px solid #555;
-    color: #e0e0e0;
-    box-shadow: 0 0 20px 2px var(--theme-shadow-color, rgba(0, 0, 0, 0.5)), 0 5px 15px rgba(0, 0, 0, 0.5); 
-}
-html.dark .ati-os-modal .modal-header { border-bottom: 1px solid #444; }
-html.dark .ati-os-modal h3 { color: var(--theme-heading-color, #0095ff); }
-html.dark .ati-os-modal .modal-close-btn { color: #888; }
-html.dark .ati-os-modal .modal-close-btn:hover { color: #fff; }
-html.dark .ati-os-modal .modal-body label { color: #aaa; }
-html.dark .ati-os-modal .modal-textarea {
-    background-color: #3a3a3a;
-    color: #e0e0e0;
-    border: 1px solid #555;
-    border-color: var(--theme-border-color, #007bff);
-}
-html.dark .ati-os-modal .modal-suggestion {
-    background-color: rgba(0, 0, 0, 0.1);
-    border: 1px solid var(--theme-button-bg, #007bff);
-}
-html.dark .ati-os-modal .modal-category-title {
-    color: var(--theme-heading-color, #0095ff);
-    border-bottom: 1px dashed #555;
-}
-html.dark .ati-os-modal .template-btn {
-    border: 1px solid #555;
-    color: #ccc;
-    border-color: var(--theme-border-color, #007bff);
-}
-html.dark .ati-os-modal .template-btn:hover {
-    background-color: #555;
-    color: white;
-    border-color: var(--theme-border-color, #007bff);
-}
-html.dark .ati-os-modal .template-btn--suggestion {
-    background-color: var(--theme-button-bg, #007bff);
-    color: var(--theme-button-text, white);
-    border-color: var(--theme-button-bg, #007bff);
-}
-html.dark .ati-os-modal .template-btn--suggestion:hover {
-    background-color: var(--theme-button-bg, #0056b3);
-}
-html.dark .ati-os-modal .modal-footer { border-top: 1px solid #444; }
-html.dark .ati-os-modal .main-btn--sgp { background-color: var(--theme-info-color, #3B82F6); color: white; }
-html.dark .ati-os-modal .main-btn--sgp:hover { background-color: #3172d8; }
-html.dark .ati-os-modal .main-btn--confirm { background-color: var(--theme-success-color, #28a745); color: white; }
-html.dark .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
-html.dark .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
-html.dark .ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
-
-
-/* --- Quick Replies Fixes (Garante Cores nos Temas) --- */
-
-/* TEMA CLARO: Texto preto nos botões de resposta rápida */
-html:not(.dark) #atiQuickRepliesContainerV2 .qr-btn {
-    color: #000000 !important;
+/**
+ * Carrega e armazena em cache os dados de todos os atendentes.
+ */
+async function loadAndCacheAtendentes() {
+    try {
+        const atendentes = await fetchFromFirebaseRest('atendentes');
+        if (atendentes) {
+            await chrome.storage.local.set({ cachedAtendentes: atendentes });
+            console.log("ATI Extensão: Dados dos atendentes carregados e salvos em cache.");
+            return atendentes;
+        }
+        return null;
+    } catch (error) {
+        console.error("ATI Extensão: Falha crítica ao carregar dados dos atendentes.", error);
+        return null;
+    }
 }
 
-/* TEMA ESCURO: Texto branco nos botões de resposta rápida */
-html.dark #atiQuickRepliesContainerV2 .qr-btn {
-    color: #FFFFFF !important;
+
+/**
+ * Carrega os modelos (respostas e O.S.) para o atendente logado.
+ */
+async function loadAndCacheTemplates() {
+    const { atendenteAtual } = await chrome.storage.local.get('atendenteAtual');
+    if (!atendenteAtual) {
+        await chrome.storage.local.remove('cachedOsTemplates');
+        return [];
+    }
+
+    console.log(`ATI Extensão: Carregando modelos para: ${atendenteAtual}`);
+    try {
+        const [quickRepliesData, osTemplatesData] = await Promise.all([
+            fetchFromFirebaseRest(`respostas/${atendenteAtual}`),
+            fetchFromFirebaseRest(`modelos_os/${atendenteAtual}`)
+        ]);
+
+        const quickReplies = quickRepliesData ? Object.values(quickRepliesData) : [];
+        const osTemplates = osTemplatesData ? Object.values(osTemplatesData) : [];
+
+        const allTemplates = [
+            ...quickReplies.map(t => ({ ...t, type: 'quick_reply' })),
+            ...osTemplates.map(t => ({ ...t, type: 'os_template' }))
+        ];
+
+        const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
+        await chrome.storage.local.set({ cachedOsTemplates: validTemplates });
+        console.log(`ATI Extensão: ${validTemplates.length} modelos de '${atendenteAtual}' carregados.`);
+        return validTemplates;
+
+    } catch (error) {
+        console.error("ATI Extensão: Falha ao carregar do Firebase. Usando cache.", error);
+        const { cachedOsTemplates } = await chrome.storage.local.get('cachedOsTemplates');
+        return cachedOsTemplates || [];
+    }
 }
+
+// --- Lógica do SGP ---
+let isSearchRunning = false;
+
+async function performLoginCheck(baseUrl) {
+    try {
+        const response = await fetch(`${baseUrl}/admin/`, { credentials: 'include', signal: AbortSignal.timeout(4000) });
+        return { isLoggedIn: !response.url.includes('/accounts/login'), baseUrl };
+    } catch (error) {
+        console.error(`ATI Extensão: Falha ao verificar login em ${baseUrl}.`, error.message);
+        throw error;
+    }
+}
+
+async function checkSgpStatus() {
+    const dnsUrl = 'https://sgp.atiinternet.com.br';
+    const ipUrl = 'http://201.158.20.35:8000';
+    try {
+        const dnsStatus = await performLoginCheck(dnsUrl);
+        if (dnsStatus.isLoggedIn) return dnsStatus;
+    } catch (e) { /* Fallback */ }
+    try {
+        const ipStatus = await performLoginCheck(ipUrl);
+        if (ipStatus.isLoggedIn) return ipStatus;
+    } catch (e) { /* Final failure */ }
+    return { isLoggedIn: false, baseUrl: dnsUrl };
+}
+
+async function getSgpStatusWithCache() {
+    const today = new Date().toISOString().slice(0, 10);
+    const cache = await chrome.storage.local.get('sgp_status_cache');
+    if (cache.sgp_status_cache && cache.sgp_status_cache.date === today && cache.sgp_status_cache.isLoggedIn) {
+        try {
+            const cachedStatus = await performLoginCheck(cache.sgp_status_cache.baseUrl);
+            if (cachedStatus.isLoggedIn) return cachedStatus;
+        } catch (e) { /* Cache invalid */ }
+    }
+    const currentStatus = await checkSgpStatus();
+    await chrome.storage.local.set({ sgp_status_cache: { ...currentStatus, date: today } });
+    return currentStatus;
+}
+
+async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
+    const executeSearch = async (url) => {
+        try {
+            const response = await fetch(url, { credentials: 'include' });
+            const data = await response.json();
+            return (data && data.length > 0) ? data[0] : null;
+        } catch (error) { return null; }
+    };
+    let client = null;
+    if (cpfCnpj) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=cpfcnpj&term=${cpfCnpj}`);
+    if (!client && fullName) client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=nome&term=${encodeURIComponent(fullName)}`);
+    if (!client && phoneNumber) {
+        const cleanPhone = phoneNumber.replace(/\D/g, '').substring(2);
+        client = await executeSearch(`${baseUrl}/public/autocomplete/ClienteAutocomplete?tconsulta=telefone&term=${cleanPhone}`);
+    }
+    return client;
+}
+
+async function searchClientInSgp(tabId) {
+    if (isSearchRunning) return;
+    isSearchRunning = true;
+    let success = false;
+    try {
+        const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+        if (!isLoggedIn) {
+            await chrome.tabs.create({ url: `${baseUrl}/accounts/login/?next=/admin/` });
+            return;
+        }
+        const clientData = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
+        const client = await findClientInSgp(baseUrl, clientData);
+        await chrome.tabs.create({ url: client ? `${baseUrl}/admin/cliente/${client.id}/contratos` : `${baseUrl}/admin/` });
+        success = true;
+    } finally {
+        isSearchRunning = false;
+        if (tabId) {
+            chrome.tabs.sendMessage(tabId, { action: "sgpSearchComplete", success }).catch(() => {});
+        }
+    }
+}
+
+// --- Funções de Criação de O.S. ---
+async function getSgpFormParams(clientData) {
+    const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+    if (!isLoggedIn) throw new Error("Você não está logado no SGP.");
+
+    const client = await findClientInSgp(baseUrl, clientData);
+    if (!client) throw new Error("Cliente não encontrado no SGP.");
+    
+    const addOccurrenceUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
+    const responsePage = await fetch(addOccurrenceUrl, { credentials: 'include' });
+    const pageHtml = await responsePage.text();
+
+    if (pageHtml.includes('id_username') && pageHtml.includes('id_password')) {
+        await chrome.storage.local.remove('sgp_status_cache');
+        throw new Error("Sua sessão no SGP expirou. Faça o login novamente.");
+    }
+    
+    const contracts = [];
+    const contractSelectRegex = /<select[^>]+id=['"]id_clientecontrato['"][^>]*>([\s\S]*?)<\/select>/;
+    const selectMatch = pageHtml.match(contractSelectRegex);
+    if (selectMatch && selectMatch[1]) {
+        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
+        let match;
+        while ((match = optionRegex.exec(selectMatch[1])) !== null) {
+            if (match[1]) {
+                const contractText = match[2].trim();
+                let finalAddress = '';
+                try {
+                    const servicesResponse = await fetch(`${baseUrl}/admin/clientecontrato/servico/list/ajax/?contrato_id=${match[1]}`, {credentials: 'include'});
+                    const services = await servicesResponse.json();
+                    if (services && services.length > 0) {
+                        const detailsResponse = await fetch(`${baseUrl}/admin/atendimento/ocorrencia/servico/detalhe/ajax/?servico_id=${services[0].id}&contrato_id=${match[1]}`, {credentials: 'include'});
+                        const details = await detailsResponse.json();
+                        if (details && details[0]?.end_instalacao) {
+                           finalAddress = ` - Endereço: ${details[0].end_instalacao}`;
+                        }
+                    }
+                } catch (e) { /* Ignore address fetch error */ }
+                contracts.push({ id: match[1], text: `${contractText}${finalAddress}` });
+            }
+        }
+    }
+    if (contracts.length === 0) throw new Error("Nenhum contrato ativo para este cliente.");
+
+    const occurrenceTypes = [];
+    const typeSelectRegex = /<select[^>]+id=['"]id_tipo['"][^>]*>([\s\S]*?)<\/select>/;
+    const typeSelectMatch = pageHtml.match(typeSelectRegex);
+     if (typeSelectMatch && typeSelectMatch[1]) {
+        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
+        let match;
+        while ((match = optionRegex.exec(typeSelectMatch[1])) !== null) {
+            if (match[1]) {
+                occurrenceTypes.push({ id: match[1], text: match[2].trim().replace(/&nbsp;/g, ' ') });
+            }
+        }
+    }
+
+    return { contracts, occurrenceTypes, clientSgpId: client.id };
+}
+
+async function createOccurrenceVisually(data) {
+    const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+    if (!isLoggedIn) throw new Error("Não está logado no SGP.");
+
+    const addOccurrenceUrl = `${baseUrl}/admin/atendimento/cliente/${data.clientSgpId}/ocorrencia/add/`;
+    await chrome.storage.local.set({ sgpVisualFillPayload: data });
+
+    const newTab = await chrome.tabs.create({ url: addOccurrenceUrl, active: true });
+    chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+        if (tabId === newTab.id && changeInfo.status === 'complete') {
+            chrome.scripting.executeScript({ target: { tabId: newTab.id }, func: injectAndFillForm });
+            chrome.tabs.onUpdated.removeListener(listener);
+        }
+    });
+}
+
+// --- Função Injetada no SGP ---
+function injectAndFillForm() {
+    const normalizeText = (str) => {
+        return str.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ' ').toUpperCase().trim();
+    };
+
+    let sgpUserName = '';
+    const userLiElement = Array.from(document.querySelectorAll('#header-right li')).find(li => li.textContent.includes('Usuário:'));
+    if (userLiElement) {
+        const spanElement = userLiElement.querySelector('span');
+        if (spanElement) sgpUserName = normalizeText(spanElement.textContent);
+    }
+
+    if (!sgpUserName) return alert('ATI Extensão: Não foi possível identificar o usuário logado no SGP.');
+
+    chrome.storage.local.get(['sgpVisualFillPayload', 'cachedAtendentes'], (result) => {
+        const { sgpVisualFillPayload, cachedAtendentes } = result;
+        if (!sgpVisualFillPayload || !cachedAtendentes) return alert('ATI Extensão: Dados da O.S. ou dos atendentes não encontrados.');
+
+        const attendantKey = Object.keys(cachedAtendentes).find(key => {
+            const attendantName = cachedAtendentes[key].nomeCompleto;
+            return attendantName && normalizeText(attendantName) === sgpUserName;
+        });
+        
+        const attendantSgpId = attendantKey ? cachedAtendentes[attendantKey].sgpId : null;
+
+        if (!attendantSgpId) return alert(`ATI Extensão: O ID do SGP para '${sgpUserName}' não foi encontrado no Firebase.`);
+
+        const data = sgpVisualFillPayload;
+        const setValue = (selector, value, isCheckbox = false) => {
+            const element = document.querySelector(selector);
+            if (element) {
+                if(isCheckbox) element.checked = value;
+                else element.value = value;
+                element.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+        };
+        
+        setTimeout(() => {
+            setValue('#id_clientecontrato', data.selectedContract);
+            setTimeout(() => {
+                setValue('#id_tipo', data.occurrenceType);
+                setValue('#id_conteudo', data.osText.toUpperCase());
+                setValue('#id_responsavel', attendantSgpId);
+                setValue('#id_setor', '2'); 
+                setValue('#id_metodo', '3'); 
+                setValue('#id_status', data.occurrenceStatus);
+                
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, '0');
+                const month = String(now.getMonth() + 1).padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = String(now.getHours()).padStart(2, '0');
+                const minutes = String(now.getMinutes()).padStart(2, '0');
+                setValue('#id_data_agendamento', `${day}/${month}/${year} ${hours}:${minutes}`);
+                setValue('#id_os', data.shouldCreateOS, true);
+
+                console.log('ATI Extensão: Formulário preenchido.');
+                chrome.storage.local.remove('sgpVisualFillPayload');
+            }, 1000);
+        }, 500);
+    });
+}
+
+// --- Listeners Globais ---
+chrome.runtime.onInstalled.addListener(() => {
+    loadAndCacheAtendentes();
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    switch (request.action) {
+        case "getTemplates":
+            loadAndCacheTemplates().then(sendResponse);
+            return true;
+        case "getSgpFormParams":
+            getSgpFormParams(request.data)
+                .then(response => sendResponse({success: true, data: response}))
+                .catch(error => sendResponse({success: false, message: error.message}));
+            return true;
+        case "createOccurrenceVisually":
+            createOccurrenceVisually(request.data).catch(err => console.error(err));
+            break;
+        case "userChanged":
+            Promise.all([loadAndCacheAtendentes(), loadAndCacheTemplates()]).then(() => {
+                chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
+                    tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: "reloadTemplates" }).catch(() => {}));
+                });
+            });
+            break;
+        case "themeUpdated":
+            chrome.tabs.query({ url: "*://*.chatmix.com.br/*" }, (tabs) => {
+                tabs.forEach(tab => chrome.tabs.sendMessage(tab.id, { action: "applyTheme" }).catch(() => {}));
+            });
+            break;
+        case "openInSgp":
+            searchClientInSgp(sender.tab.id);
+            break;
+    }
+    return true;
+});
+
+chrome.action.onClicked.addListener(() => {
+    const panelUrl = "https://vituali.github.io/ATI/";
+    chrome.tabs.query({ url: panelUrl }, (tabs) => {
+        if (tabs.length > 0) {
+            chrome.windows.update(tabs[0].windowId, { focused: true });
+            chrome.tabs.update(tabs[0].id, { active: true });
+        } else {
+            chrome.tabs.create({ url: panelUrl });
+        }
+    });
+});
+
+chrome.commands.onCommand.addListener(async (command) => {
+    if (command === "copy-data") {
+        const [tab] = await chrome.tabs.query({ active: true, url: "*://*.chatmix.com.br/*" });
+        if (tab) {
+            chrome.tabs.sendMessage(tab.id, { action: "executeCopy" }).catch(() => {});
+        }
+    }
+});
+
+// --- Injeção de Scripts ---
+const INJECTION_RULES = {
+    CHATMIX: { 
+        matches: ["https://www.chatmix.com.br/v2/chat*"], 
+        js: ["scripts/chatmix.js"], 
+        css: ["css/common.css", "css/chatmix.css", "css/modal.css"] 
+    },
+    SGP_OCORRENCIA: { 
+        matches: ["https://sgp.atiinternet.com.br/admin/atendimento/cliente/*/ocorrencia/add/"], 
+        js: ["scripts/sgp.js"], 
+        css: ["css/common.css", "css/modal.css"] 
+    },
+    BRIDGE: { 
+        matches: ["https://vituali.github.io/ATI/"], 
+        js: ["bridge-listener.js"], 
+        css: [] 
+    }
+};
+
+async function injectFiles(tabId, rule) {
+    try {
+        if (rule.css?.length) await chrome.scripting.insertCSS({ target: { tabId }, files: rule.css });
+        if (rule.js?.length) await chrome.scripting.executeScript({ target: { tabId }, files: rule.js });
+    } catch (err) { /* Ignora erros de injeção em abas protegidas como 'chrome://' */ }
+}
+
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url) {
+        for (const key in INJECTION_RULES) {
+            const rule = INJECTION_RULES[key];
+            if (rule.matches.some(pattern => new RegExp(pattern.replace(/\*/g, '.*')).test(tab.url))) {
+                injectFiles(tabId, rule);
+            }
+        }
+    }
+});
+

@@ -1,0 +1,149 @@
+/* =================================================================== */
+/* == MODAL.CSS - Estilos Dedicados para os Modais da Extensão ATI  == */
+/* =================================================================== */
+
+/* --- Base Estrutural do Modal (comum a ambos os temas) --- */
+.ati-os-modal.modal-backdrop {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex; justify-content: center; align-items: center;
+    z-index: 10000;
+    backdrop-filter: blur(4px);
+}
+.ati-os-modal .modal-content {
+    padding: 25px;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    width: 90%; max-width: 650px;
+    max-height: 90vh; overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--theme-font-secondary);
+}
+.ati-os-modal .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+}
+.ati-os-modal h3 {
+    margin: 0;
+    font-size: 1.25rem;
+    font-family: var(--theme-font-primary);
+}
+.ati-os-modal .modal-close-btn {
+    background: none; border: none; font-size: 1.8rem;
+    cursor: pointer;
+}
+.ati-os-modal .modal-body label {
+    display: block; margin-bottom: 8px;
+    font-weight: bold;
+    font-size: 0.9rem;
+}
+
+/* --- Estilos específicos para Input e Textarea --- */
+.ati-os-modal .modal-textarea { /* Classe base aplicada a ambos */
+    width: 100%;
+    padding: 10px;
+    border-radius: 5px;
+    font-size: 14px;
+    box-sizing: border-box;
+}
+
+.ati-os-modal #osTextArea { /* Estilo específico para a DESCRIÇÃO */
+    min-height: 120px;
+    resize: vertical;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+}
+
+.ati-os-modal #occurrenceTypeSearchInput { /* Estilo específico para a BUSCA */
+    min-height: auto;
+    margin-bottom: 0;
+}
+
+.ati-os-modal .modal-suggestion {
+    border-radius: 5px; padding: 15px; margin-bottom: 20px;
+}
+.ati-os-modal .modal-category-title {
+    flex-basis: 100%; margin-top: 15px; margin-bottom: 10px;
+    font-size: 1rem;
+    padding-bottom: 5px;
+}
+.ati-os-modal .modal-btn-group { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+.ati-os-modal .template-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    background-color: transparent;
+    cursor: pointer; font-size: 13px;
+    transition: all 0.2s;
+}
+.ati-os-modal .modal-footer {
+    display: flex; justify-content: flex-end; gap: 10px;
+    margin-top: 20px; padding-top: 20px;
+    border-top: 1px solid #dee2e6;
+}
+.ati-os-modal .main-btn {
+    padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer;
+    font-weight: bold;
+    font-size: 15px; transition: background-color 0.2s;
+    font-family: var(--theme-font-primary);
+}
+
+/* --- TEMA CLARO (LIGHT MODE) --- */
+html:not(.dark) .ati-os-modal .modal-content { background: #ffffff; border: 1px solid #dee2e6; color: #212529; }
+html:not(.dark) .ati-os-modal .modal-header { border-bottom: 1px solid #dee2e6; }
+html:not(.dark) .ati-os-modal h3 { color: #007bff; }
+html:not(.dark) .ati-os-modal .modal-close-btn { color: #6c757d; }
+html:not(.dark) .ati-os-modal .modal-close-btn:hover { color: #212529; }
+html:not(.dark) .ati-os-modal .modal-body label { color: #495057; }
+html:not(.dark) .ati-os-modal .modal-textarea { background-color: #f8f9fa; color: #212529; border: 1px solid #ced4da; }
+html:not(.dark) .ati-os-modal .modal-suggestion { background-color: #e7f1ff; border: 1px solid #b3d1ff; }
+html:not(.dark) .ati-os-modal .modal-category-title { color: #007bff; border-bottom: 1px dashed #ced4da; }
+html:not(.dark) .ati-os-modal .template-btn { border: 1px solid #ced4da; color: #212529; }
+html:not(.dark) .ati-os-modal .template-btn:hover { background-color: #e9ecef; border-color: #ced4da; }
+html:not(.dark) .ati-os-modal .template-btn--suggestion { background-color: #007bff; color: white; border-color: #007bff; }
+html:not(.dark) .ati-os-modal .template-btn--suggestion:hover { background-color: #0069d9; border-color: #0062cc; }
+html:not(.dark) .ati-os-modal .main-btn--sgp { background-color: #3B82F6; color: white; }
+html:not(.dark) .ati-os-modal .main-btn--sgp:hover { background-color: #3172d8; }
+html:not(.dark) .ati-os-modal .main-btn--confirm { background-color: #28a745; color: white; }
+html:not(.dark) .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
+html:not(.dark) .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
+html:not(.dark) .ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
+
+
+/* --- TEMA ESCURO (DARK MODE) --- */
+html.dark .ati-os-modal .modal-content { background: #2d2d2d; border: 1px solid #555; color: #e0e0e0; box-shadow: 0 0 20px 2px var(--theme-shadow-color, rgba(0, 0, 0, 0.5)), 0 5px 15px rgba(0, 0, 0, 0.5); }
+html.dark .ati-os-modal .modal-header { border-bottom: 1px solid #444; }
+html.dark .ati-os-modal h3 { color: var(--theme-heading-color, #0095ff); }
+html.dark .ati-os-modal .modal-close-btn { color: #888; }
+html.dark .ati-os-modal .modal-close-btn:hover { color: #fff; }
+html.dark .ati-os-modal .modal-body label { color: #aaa; }
+html.dark .ati-os-modal .modal-textarea { background-color: #3a3a3a; color: #e0e0e0; border: 1px solid #555; border-color: var(--theme-border-color, #007bff); }
+html.dark .ati-os-modal .modal-suggestion { background-color: rgba(0, 0, 0, 0.1); border: 1px solid var(--theme-button-bg, #007bff); }
+html.dark .ati-os-modal .modal-category-title { color: var(--theme-heading-color, #0095ff); border-bottom: 1px dashed #555; }
+html.dark .ati-os-modal .template-btn { border: 1px solid #555; color: #ccc; border-color: var(--theme-border-color, #007bff); }
+html.dark .ati-os-modal .template-btn:hover { background-color: #555; color: white; border-color: var(--theme-border-color, #007bff); }
+html.dark .ati-os-modal .template-btn--suggestion { background-color: var(--theme-button-bg, #007bff); color: var(--theme-button-text, white); border-color: var(--theme-button-bg, #007bff); }
+html.dark .ati-os-modal .template-btn--suggestion:hover { background-color: var(--theme-button-bg, #0056b3); }
+html.dark .ati-os-modal .modal-footer { border-top: 1px solid #444; }
+html.dark .ati-os-modal .main-btn--sgp { background-color: var(--theme-info-color, #3B82F6); color: white; }
+html.dark .ati-os-modal .main-btn--sgp:hover { background-color: #3172d8; }
+html.dark .ati-os-modal .main-btn--confirm { background-color: var(--theme-success-color, #28a745); color: white; }
+html.dark .ati-os-modal .main-btn--confirm:hover { background-color: #218838; }
+html.dark .ati-os-modal .main-btn--cancel { background-color: #6c757d; color: white; }
+html.dark .ati-os-modal .main-btn--cancel:hover { background-color: #5a6268; }
+
+/* --- Estilos do Dropdown com Busca --- */
+.searchable-select-container { position: relative; }
+.searchable-options-list {
+    display: none; position: absolute; background-color: #ffffff; color: #212529;
+    width: 100%; border: 1px solid #ced4da; border-radius: 5px; z-index: 10001;
+    max-height: 150px; overflow-y: auto; box-sizing: border-box; margin-top: -1px;
+}
+html.dark .searchable-options-list { background-color: #3a3a3a; border-color: #555; color: #e0e0e0; }
+.searchable-option { padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #dee2e6; }
+html.dark .searchable-option { border-bottom: 1px solid #444; }
+.searchable-option:last-child { border-bottom: none; }
+.searchable-option:hover { background-color: #e9ecef; }
+html.dark .searchable-option:hover { background-color: #555; color: white; }
