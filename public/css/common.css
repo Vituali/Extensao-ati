@@ -1,0 +1,31 @@
+/* =================================================================== */
+/* == ARQUIVO DE ESTILOS COMUNS (REVISADO) - ATI EXTENSÃO           == */
+/* =================================================================== */
+
+/* --- Notificações --- */
+.notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 8px;
+    color: white;
+    z-index: 10000;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-family: var(--theme-font-secondary);
+}
+.notification.success { background-color: var(--theme-success-color, #22C55E); }
+.notification.error { background-color: var(--theme-error-color, #EF4444); }
+
+/* --- Quick Replies Fixes (Garante Cores nos Temas) --- */
+
+/* TEMA CLARO: Texto preto nos botões de resposta rápida */
+html:not(.dark) #atiQuickRepliesContainerV2 .qr-btn {
+    color: #000000 !important;
+}
+
+/* TEMA ESCURO: Texto branco nos botões de resposta rápida */
+html.dark #atiQuickRepliesContainerV2 .qr-btn {
+    color: #FFFFFF !important;
+}

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "ATI - Auxiliar de Atendimentos",
-  "version": "1.1",
+  "version": "1.3",
   "description": "Copia dados, sugere e cria Ordens de Serviço a partir do chat.",
   
   "permissions": [
@@ -11,15 +11,16 @@
     "clipboardRead",
     "tabs",
     "commands",
-    "notifications"
+    "scripting"
   ],
   "host_permissions": [
-    "https://*.firebaseio.com/*",
-    "https://*.firebaseapp.com/",
-    "https://*.googleapis.com/*",
+    "https://www.chatmix.com.br/*",
+    "https://vituali.github.io/ATI/",
     "https://sgp.atiinternet.com.br/*",
-    "http://201.158.20.35:8000/*",
-    "https://gist.githubusercontent.com/*" 
+    "https://*.firebaseio.com/*",
+    "https://*.firebaseapp.com/*",
+    "https://*.googleapis.com/*",
+    "http://201.158.20.35:8000/*"
   ],
 
   "icons": {
@@ -46,52 +47,18 @@
       "description": "Copia os dados do cliente ativo."
     }
   },
-  "content_scripts": [
-    {
-      "matches": [
-        "https://www.chatmix.com.br/v2/chat*"
-      ],
-      "js": [
-        "firebase-config.js",
-        "scripts/logic.js",
-        "scripts/utils.js",
-        "scripts/chatmix.js"
-      ],
-      "css": [
-        "css/common.css",
-        "css/chatmix.css"
-      ]
-    },
-    {
-      "matches": [
-        "https://vituali.github.io/ATI/"
-      ],
-      "js": [
-        "bridge-listener.js"
-      ],
-      "all_frames": true
-    },
-    {
-      "matches": [
-        "https://sgp.atiinternet.com.br/admin/atendimento/cliente/*/ocorrencia/add/"
-      ],
-      "js": [
-        "scripts/sgp.js",
-        "scripts/utils.js"
-      ],
-      "css": [
-        "css/common.css"
-      ]
-    }
-  ],
   "web_accessible_resources": [
     {
       "resources": [
+        "scripts/chatmix.js",
+        "scripts/sgp.js",
         "bridge-injected.js",
-        "css/*.css"
+        "css/*.css",
+        "icones/*.png"
       ],
       "matches": [
         "https://*.chatmix.com.br/*",
+        "https://sgp.atiinternet.com.br/*",
         "https://vituali.github.io/*"
       ]
     }
