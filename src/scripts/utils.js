@@ -139,6 +139,7 @@ export function createModal({ title, bodyHTML, footerButtons }) {
 }
 
 
+// Substitua a função showOSModal inteira por esta
 export async function showOSModal({ allTemplates, extractChatFn, clientData, sgpData }) {
     injectModalStyles();
     const clientChatTexts = extractChatFn();
@@ -157,12 +158,12 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData, sgp
     for (const category in templatesByCategory) {
         modelsHTML += `<h4 class="modal-category-title">${category}</h4>`;
         modelsHTML += `<div class="modal-btn-group">` + templatesByCategory[category]
-            .map(t => `<button class="template-btn" data-template-text="${t.text.replace(/"/g, '&quot;')}">${t.title}</button>`)
+            .map(t => `<button class="template-btn" data-template-text="${t.text.replace(/"/g, '&quot;')}" data-occurrence-type-id="${t.occurrenceTypeId || ''}">${t.title}</button>`)
             .join('') + `</div>`;
     }
 
     const suggestionHTML = suggestedTemplate ?
-        `<div class="modal-suggestion"><strong>Sugestão:</strong><button class="template-btn template-btn--suggestion" data-template-text="${suggestedTemplate.text.replace(/"/g, '&quot;')}">${suggestedTemplate.title}</button></div>` :
+        `<div class="modal-suggestion"><strong>Sugestão:</strong><button class="template-btn template-btn--suggestion" data-template-text="${suggestedTemplate.text.replace(/"/g, '&quot;')}" data-occurrence-type-id="${suggestedTemplate.occurrenceTypeId || ''}">${suggestedTemplate.title}</button></div>` :
         '';
 
     let contractHTML = '';
@@ -199,7 +200,6 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData, sgp
             </label>
         </div>`;
 
-
     const modalConfig = {
         title: 'Criar Ordem de Serviço',
         bodyHTML: `
@@ -230,30 +230,29 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData, sgp
 
         osTextArea.value = processDynamicPlaceholders(osBaseText).toUpperCase();
 
-        const updateOccurrenceType = (templateTitle) => {
-            const upperCaseTitle = templateTitle.toUpperCase();
-            const mapKey = Object.keys(TEMPLATE_TO_OCCURRENCE_MAP).find(key => upperCaseTitle.includes(key));
-            
-            if (mapKey) {
-                const targetText = TEMPLATE_TO_OCCURRENCE_MAP[mapKey];
-                const occurrenceType = sgpData.occurrenceTypes.find(type => type.text.toUpperCase() === targetText.toUpperCase());
-                
-                if (occurrenceType) {
-                    searchInput.value = occurrenceType.text;
-                    hiddenInput.value = occurrenceType.id;
-                }
-            }
-        };
-
+        // **NOVA LÓGICA DE EVENTOS**
         modalElement.querySelectorAll('.template-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                if (e.target.tagName === 'BUTTON') {
-                    const templateText = btn.getAttribute('data-template-text');
-                    const fullText = osBaseText + templateText;
-                    osTextArea.value = processDynamicPlaceholders(fullText).toUpperCase();
-                    osTextArea.focus();
-                    
-                    updateOccurrenceType(btn.textContent);
+                // Previne ação em cliques nos inputs de rádio dentro dos labels
+                if (e.target.tagName === 'INPUT' && e.target.type === 'radio') return;
+
+                const buttonElement = e.target.closest('.template-btn');
+                if (!buttonElement) return;
+
+                // 1. Preenche o texto da descrição
+                const templateText = buttonElement.getAttribute('data-template-text');
+                const fullText = osBaseText + templateText;
+                osTextArea.value = processDynamicPlaceholders(fullText).toUpperCase();
+                osTextArea.focus();
+
+                // 2. Seleciona o Tipo de Ocorrência usando o ID do template
+                const occurrenceTypeId = buttonElement.getAttribute('data-occurrence-type-id');
+                if (occurrenceTypeId) {
+                    const occurrenceType = sgpData.occurrenceTypes.find(type => type.id === occurrenceTypeId);
+                    if (occurrenceType) {
+                        searchInput.value = occurrenceType.text;
+                        hiddenInput.value = occurrenceType.id;
+                    }
                 }
             });
         });
@@ -315,7 +314,6 @@ export async function showOSModal({ allTemplates, extractChatFn, clientData, sgp
         if (userAction.action === 'copy') {
             await navigator.clipboard.writeText(submissionData.osText);
             showNotification("O.S. copiada com sucesso!");
-
         } else if (userAction.action === 'fill_sgp_debug') {
             if (!submissionData.osText || submissionData.osText.trim() === '|') {
                 return showNotification("A descrição da O.S. está vazia.", true);

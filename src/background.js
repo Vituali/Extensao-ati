@@ -1,7 +1,84 @@
 // Importa a configuração de um local centralizado.
-import { firebaseConfig } from './firebase-config.js';
+import { firebaseConfig } from "./firebase-config.js"; 
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, set } from "firebase/database";
 
-// --- Funções de Lógica do Firebase (Usando API REST) ---
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/**
+ * Salva a lista de tipos de ocorrência no Firebase para o painel usar.
+ * @param {Array} types - A lista de tipos extraída do SGP.
+ */
+async function saveOccurrenceTypesToFirebase(types) {
+    if (!types || types.length === 0) return;
+    try {
+        const dbRef = ref(db, 'sgp_cache/occurrenceTypes');
+        await set(dbRef, types);
+        console.log('ATI Extensão: Tipos de ocorrência do SGP foram sincronizados com o Firebase.');
+    } catch (error) {
+        console.error('ATI Extensão: Falha ao salvar tipos de ocorrência no Firebase.', error);
+    }
+}
+
+/**
+ * Busca e extrai dados da página de nova ocorrência do SGP usando regex para compatibilidade com o Service Worker.
+ * @param {string} baseUrl - A URL base do SGP.
+ * @param {object} client - O objeto do cliente com o ID.
+ * @returns {Promise<object>} - Os dados extraídos da página.
+ */
+async function getSgpDataForClient(baseUrl, client) {
+    const url = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        if (!response.ok) throw new Error(`Falha ao carregar a página do SGP, status: ${response.status}`);
+        
+        const htmlText = await response.text();
+
+        // Verifica se foi redirecionado para a página de login
+        if (htmlText.includes('id_username') && htmlText.includes('id_password')) {
+            await chrome.storage.local.remove('sgp_status_cache');
+            throw new Error("Sua sessão no SGP expirou. Faça o login novamente.");
+        }
+
+        // Função auxiliar para extrair options de um <select> usando Regex
+        const parseSelectWithOptions = (selectId) => {
+            const selectRegex = new RegExp(`<select[^>]+id=['"]${selectId}['"][^>]*>([\\s\\S]*?)<\\/select>`);
+            const selectMatch = htmlText.match(selectRegex);
+            const options = [];
+            if (selectMatch && selectMatch[1]) {
+                const optionRegex = /<option[^>]+value=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/option>/g;
+                let match;
+                while ((match = optionRegex.exec(selectMatch[1])) !== null) {
+                    if (match[1]) { // Garante que a option tenha um valor
+                        options.push({
+                            value: match[1],
+                            text: match[2].trim().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ')
+                        });
+                    }
+                }
+            }
+            return options;
+        };
+
+        const contracts = parseSelectWithOptions('id_clientecontrato').map(opt => ({ id: opt.value, text: opt.text }));
+        const responsibleUsers = parseSelectWithOptions('id_responsavel').map(opt => ({ id: opt.value, username: opt.text.toLowerCase() }));
+        const occurrenceTypes = parseSelectWithOptions('id_tipo').map(opt => ({ id: opt.value, text: opt.text }));
+
+        // Salva a lista de ocorrências no Firebase em segundo plano
+        saveOccurrenceTypesToFirebase(occurrenceTypes);
+
+        return {
+            clientSgpId: client.id,
+            contracts,
+            responsibleUsers,
+            occurrenceTypes
+        };
+    } catch (error) {
+        console.error(`ATI Extensão: Falha ao buscar dados do SGP para o cliente ${client.id}.`, error);
+        throw error; // Propaga o erro para ser tratado pelo chamador
+    }
+}
 
 /**
  * Busca dados genéricos do Firebase via API REST.
@@ -143,14 +220,52 @@ async function searchClientInSgp(tabId) {
     let success = false;
     try {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+
         if (!isLoggedIn) {
-            await chrome.tabs.create({ url: `${baseUrl}/accounts/login/?next=/admin/` });
+            const loginUrl = `${baseUrl}/accounts/login/`;
+            const existingLoginTabs = await chrome.tabs.query({ url: `${loginUrl}*` });
+
+            if (existingLoginTabs.length > 0) {
+                await chrome.tabs.update(existingLoginTabs[0].id, { active: true });
+                await chrome.windows.update(existingLoginTabs[0].windowId, { focused: true });
+            } else {
+                await chrome.tabs.create({ url: loginUrl });
+            }
             return;
         }
+
         const clientData = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
         const client = await findClientInSgp(baseUrl, clientData);
-        await chrome.tabs.create({ url: client ? `${baseUrl}/admin/cliente/${client.id}/contratos` : `${baseUrl}/admin/` });
+        
+        if (client && client.id) {
+            const titlePattern = `*SGP*(${client.id})*`; 
+            const existingClientTabs = await chrome.tabs.query({ title: titlePattern });
+
+            if (existingClientTabs.length > 0) {
+                const tab = existingClientTabs[0];
+                await chrome.tabs.update(tab.id, { active: true });
+                await chrome.windows.update(tab.windowId, { focused: true });
+            } else {
+                const targetUrl = `${baseUrl}/admin/cliente/${client.id}/contratos`;
+                await chrome.tabs.create({ url: targetUrl });
+            }
+        } else {
+            const adminUrl = `${baseUrl}/admin/`;
+            const existingAdminTabs = await chrome.tabs.query({ url: `${adminUrl}*` });
+
+            if (existingAdminTabs.length > 0) {
+                const tab = existingAdminTabs[0];
+                await chrome.tabs.update(tab.id, { active: true });
+                await chrome.windows.update(tab.windowId, { focused: true });
+            } else {
+                await chrome.tabs.create({ url: adminUrl });
+            }
+        }
+        
         success = true;
+
+    } catch (error) {
+        console.error("ATI Extensão: Erro durante a busca no SGP.", error);
     } finally {
         isSearchRunning = false;
         if (tabId) {
@@ -167,71 +282,8 @@ async function getSgpFormParams(clientData) {
     const client = await findClientInSgp(baseUrl, clientData);
     if (!client) throw new Error("Cliente não encontrado no SGP.");
     
-    const addOccurrenceUrl = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
-    const responsePage = await fetch(addOccurrenceUrl, { credentials: 'include' });
-    const pageHtml = await responsePage.text();
-
-    if (pageHtml.includes('id_username') && pageHtml.includes('id_password')) {
-        await chrome.storage.local.remove('sgp_status_cache');
-        throw new Error("Sua sessão no SGP expirou. Faça o login novamente.");
-    }
-    
-    // Extrai a lista de responsáveis diretamente do HTML do SGP
-    const responsibleUsers = [];
-    const responsibleSelectRegex = /<select[^>]+id=['"]id_responsavel['"][^>]*>([\s\S]*?)<\/select>/;
-    const responsibleMatch = pageHtml.match(responsibleSelectRegex);
-    if (responsibleMatch && responsibleMatch[1]) {
-        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
-        let match;
-        while ((match = optionRegex.exec(responsibleMatch[1])) !== null) {
-            if (match[1]) {
-                const username = match[2].trim().toLowerCase();
-                responsibleUsers.push({ id: match[1], username: username });
-            }
-        }
-    }
-
-    const contracts = [];
-    const contractSelectRegex = /<select[^>]+id=['"]id_clientecontrato['"][^>]*>([\s\S]*?)<\/select>/;
-    const selectMatch = pageHtml.match(contractSelectRegex);
-    if (selectMatch && selectMatch[1]) {
-        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
-        let match;
-        while ((match = optionRegex.exec(selectMatch[1])) !== null) {
-            if (match[1]) {
-                const contractText = match[2].trim();
-                let finalAddress = '';
-                try {
-                    const servicesResponse = await fetch(`${baseUrl}/admin/clientecontrato/servico/list/ajax/?contrato_id=${match[1]}`, {credentials: 'include'});
-                    const services = await servicesResponse.json();
-                    if (services && services.length > 0) {
-                        const detailsResponse = await fetch(`${baseUrl}/admin/atendimento/ocorrencia/servico/detalhe/ajax/?servico_id=${services[0].id}&contrato_id=${match[1]}`, {credentials: 'include'});
-                        const details = await detailsResponse.json();
-                        if (details && details[0]?.end_instalacao) {
-                           finalAddress = ` - Endereço: ${details[0].end_instalacao}`;
-                        }
-                    }
-                } catch (e) { /* Ignore address fetch error */ }
-                contracts.push({ id: match[1], text: `${contractText}${finalAddress}` });
-            }
-        }
-    }
-    if (contracts.length === 0) throw new Error("Nenhum contrato ativo para este cliente.");
-
-    const occurrenceTypes = [];
-    const typeSelectRegex = /<select[^>]+id=['"]id_tipo['"][^>]*>([\s\S]*?)<\/select>/;
-    const typeSelectMatch = pageHtml.match(typeSelectRegex);
-     if (typeSelectMatch && typeSelectMatch[1]) {
-        const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
-        let match;
-        while ((match = optionRegex.exec(typeSelectMatch[1])) !== null) {
-            if (match[1]) {
-                occurrenceTypes.push({ id: match[1], text: match[2].trim().replace(/&nbsp;/g, ' ') });
-            }
-        }
-    }
-
-    return { contracts, occurrenceTypes, clientSgpId: client.id, responsibleUsers };
+    // Reutiliza a função já criada que faz a busca e a sincronização
+    return await getSgpDataForClient(baseUrl, client);
 }
 
 async function createOccurrenceVisually(data) {
@@ -252,26 +304,14 @@ async function createOccurrenceVisually(data) {
 
 // --- Função Injetada no SGP ---
 function injectAndFillForm() {
-    // A única fonte de verdade é o atendente logado no Painel ATI.
     chrome.storage.local.get(['sgpVisualFillPayload', 'atendenteAtual'], (result) => {
         const { sgpVisualFillPayload, atendenteAtual } = result;
 
         if (!sgpVisualFillPayload) return alert('ATI Extensão: Dados da O.S. não encontrados.');
         if (!atendenteAtual) return alert('ATI Extensão: Nenhum atendente logado no painel ATI. Faça o login para continuar.');
 
-        // A lista de usuários do SGP agora vem no payload, extraída pelo background
-// A lista de usuários do SGP agora vem no payload, extraída pelo background
         const responsibleUsers = sgpVisualFillPayload.responsibleUsers || [];
-        
         const currentUser = atendenteAtual.toLowerCase();
-
-        // --- INÍCIO DO CÓDIGO DE DEPURAÇÃO ---
-        console.log("ATI DEBUG: Comparando usuário", { 
-            currentUser: currentUser,
-            tipoDeCurrentUser: typeof currentUser,
-            responsibleUsers: responsibleUsers 
-        });
-        // --- FIM DO CÓDIGO DE DEPURAÇÃO ---
         
         const responsibleUser = responsibleUsers.find(user => user.username === currentUser);
         const attendantSgpId = responsibleUser ? responsibleUser.id : null;
