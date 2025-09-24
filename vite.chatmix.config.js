@@ -1,21 +1,22 @@
-// vite.chatmix.config.js
-
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  publicDir: false, // Adicione esta linha
+  publicDir: false,
   build: {
     outDir: resolve(__dirname, 'dist'),
-    emptyOutDir: false, // Não apaga a pasta 'dist' [cite: 409]
+    emptyOutDir: false,
+    // Adiciona o monitoramento de arquivos para este build também.
+    watch: {
+      include: ['src/scripts/chatmix.js', 'src/scripts/utils.js', 'src/scripts/logic.js', 'src/scripts/modal.js'],
+    },
     rollupOptions: {
-      // Apenas UMA entrada
       input: {
         chatmix: resolve(__dirname, 'src/scripts/chatmix.js'),
       },
       output: {
         format: 'iife',
-        entryFileNames: 'scripts/[name].js', // Saída: dist/scripts/chatmix.js
+        entryFileNames: 'scripts/[name].js',
       },
     },
   },

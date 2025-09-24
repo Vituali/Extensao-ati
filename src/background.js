@@ -1,10 +1,14 @@
 // Importa a configuração de um local centralizado.
-import { firebaseConfig } from "./firebase-config.js"; 
+import { firebaseConfig } from "./firebase-config.js";
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set } from "firebase/database";
 
+// --- INICIALIZAÇÃO DO FIREBASE ---
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
+
+// --- Lógica de Cache Temporário ---
+const sgpCache = new Map();
 
 /**
  * Salva a lista de tipos de ocorrência no Firebase para o painel usar.
@@ -21,70 +25,8 @@ async function saveOccurrenceTypesToFirebase(types) {
     }
 }
 
-/**
- * Busca e extrai dados da página de nova ocorrência do SGP usando regex para compatibilidade com o Service Worker.
- * @param {string} baseUrl - A URL base do SGP.
- * @param {object} client - O objeto do cliente com o ID.
- * @returns {Promise<object>} - Os dados extraídos da página.
- */
-async function getSgpDataForClient(baseUrl, client) {
-    const url = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
-    try {
-        const response = await fetch(url, { credentials: 'include' });
-        if (!response.ok) throw new Error(`Falha ao carregar a página do SGP, status: ${response.status}`);
-        
-        const htmlText = await response.text();
+// --- FUNÇÕES DE BUSCA DE DADOS ---
 
-        // Verifica se foi redirecionado para a página de login
-        if (htmlText.includes('id_username') && htmlText.includes('id_password')) {
-            await chrome.storage.local.remove('sgp_status_cache');
-            throw new Error("Sua sessão no SGP expirou. Faça o login novamente.");
-        }
-
-        // Função auxiliar para extrair options de um <select> usando Regex
-        const parseSelectWithOptions = (selectId) => {
-            const selectRegex = new RegExp(`<select[^>]+id=['"]${selectId}['"][^>]*>([\\s\\S]*?)<\\/select>`);
-            const selectMatch = htmlText.match(selectRegex);
-            const options = [];
-            if (selectMatch && selectMatch[1]) {
-                const optionRegex = /<option[^>]+value=['"]([^'"]+)['"][^>]*>([\s\S]*?)<\/option>/g;
-                let match;
-                while ((match = optionRegex.exec(selectMatch[1])) !== null) {
-                    if (match[1]) { // Garante que a option tenha um valor
-                        options.push({
-                            value: match[1],
-                            text: match[2].trim().replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ')
-                        });
-                    }
-                }
-            }
-            return options;
-        };
-
-        const contracts = parseSelectWithOptions('id_clientecontrato').map(opt => ({ id: opt.value, text: opt.text }));
-        const responsibleUsers = parseSelectWithOptions('id_responsavel').map(opt => ({ id: opt.value, username: opt.text.toLowerCase() }));
-        const occurrenceTypes = parseSelectWithOptions('id_tipo').map(opt => ({ id: opt.value, text: opt.text }));
-
-        // Salva a lista de ocorrências no Firebase em segundo plano
-        saveOccurrenceTypesToFirebase(occurrenceTypes);
-
-        return {
-            clientSgpId: client.id,
-            contracts,
-            responsibleUsers,
-            occurrenceTypes
-        };
-    } catch (error) {
-        console.error(`ATI Extensão: Falha ao buscar dados do SGP para o cliente ${client.id}.`, error);
-        throw error; // Propaga o erro para ser tratado pelo chamador
-    }
-}
-
-/**
- * Busca dados genéricos do Firebase via API REST.
- * @param {string} path O caminho para os dados (ex: 'atendentes' ou 'respostas/victorh').
- * @returns {Promise<object|null>} Os dados encontrados ou nulo.
- */
 async function fetchFromFirebaseRest(path) {
   if (!path) return null;
   const dbURL = firebaseConfig.databaseURL;
@@ -99,9 +41,6 @@ async function fetchFromFirebaseRest(path) {
   }
 }
 
-/**
- * Carrega e armazena em cache os dados de todos os atendentes.
- */
 async function loadAndCacheAtendentes() {
     try {
         const atendentes = await fetchFromFirebaseRest('atendentes');
@@ -117,37 +56,26 @@ async function loadAndCacheAtendentes() {
     }
 }
 
-
-/**
- * Carrega os modelos (respostas e O.S.) para o atendente logado.
- */
 async function loadAndCacheTemplates() {
     const { atendenteAtual } = await chrome.storage.local.get('atendenteAtual');
     if (!atendenteAtual) {
         await chrome.storage.local.remove('cachedOsTemplates');
         return [];
     }
-
-    console.log(`ATI Extensão: Carregando modelos para: ${atendenteAtual}`);
     try {
         const [quickRepliesData, osTemplatesData] = await Promise.all([
             fetchFromFirebaseRest(`respostas/${atendenteAtual}`),
             fetchFromFirebaseRest(`modelos_os/${atendenteAtual}`)
         ]);
-
         const quickReplies = quickRepliesData ? Object.values(quickRepliesData) : [];
         const osTemplates = osTemplatesData ? Object.values(osTemplatesData) : [];
-
         const allTemplates = [
             ...quickReplies.map(t => ({ ...t, type: 'quick_reply' })),
             ...osTemplates.map(t => ({ ...t, type: 'os_template' }))
         ];
-
         const validTemplates = Array.isArray(allTemplates) ? allTemplates.filter(t => t && typeof t === 'object') : [];
         await chrome.storage.local.set({ cachedOsTemplates: validTemplates });
-        console.log(`ATI Extensão: ${validTemplates.length} modelos de '${atendenteAtual}' carregados.`);
         return validTemplates;
-
     } catch (error) {
         console.error("ATI Extensão: Falha ao carregar do Firebase. Usando cache.", error);
         const { cachedOsTemplates } = await chrome.storage.local.get('cachedOsTemplates');
@@ -155,7 +83,7 @@ async function loadAndCacheTemplates() {
     }
 }
 
-// --- Lógica do SGP ---
+// --- LÓGICA DE INTERAÇÃO COM O SGP ---
 let isSearchRunning = false;
 
 async function performLoginCheck(baseUrl) {
@@ -214,17 +142,83 @@ async function findClientInSgp(baseUrl, { cpfCnpj, fullName, phoneNumber }) {
     return client;
 }
 
+async function getSgpDataForClient(baseUrl, client, cacheKey) {
+    const cachedData = sgpCache.get(cacheKey);
+    if (cachedData) {
+        console.log(`ATI Extensão: Usando dados do SGP do cache para: ${cacheKey}.`);
+        return cachedData;
+    }
+
+    console.log(`ATI Extensão: Buscando novos dados do SGP para: ${cacheKey}.`);
+    const url = `${baseUrl}/admin/atendimento/cliente/${client.id}/ocorrencia/add/`;
+    try {
+        const response = await fetch(url, { credentials: 'include' });
+        const htmlText = await response.text();
+
+        if (htmlText.includes('id_username') && htmlText.includes('id_password')) {
+            await chrome.storage.local.remove('sgp_status_cache');
+            throw new Error("Sua sessão no SGP expirou. Faça o login novamente.");
+        }
+        
+        const extractOptions = (selectIdRegex) => {
+            const match = htmlText.match(selectIdRegex);
+            const options = [];
+            if (match && match[1]) {
+                const optionRegex = /<option[^>]+value=['"](\d+)['"][^>]*>([\s\S]*?)<\/option>/g;
+                let optMatch;
+                while ((optMatch = optionRegex.exec(match[1])) !== null) {
+                    if (optMatch[1]) {
+                        options.push({ id: optMatch[1], text: optMatch[2].trim().replace(/&nbsp;/g, ' ') });
+                    }
+                }
+            }
+            return options;
+        };
+
+        const initialContracts = extractOptions(/<select[^>]+id=['"]id_clientecontrato['"][^>]*>([\s\S]*?)<\/select>/);
+        const responsibleUsers = extractOptions(/<select[^>]+id=['"]id_responsavel['"][^>]*>([\s\S]*?)<\/select>/).map(u => ({ id: u.id, username: u.text.toLowerCase() }));
+        const occurrenceTypes = extractOptions(/<select[^>]+id=['"]id_tipo['"][^>]*>([\s\S]*?)<\/select>/);
+
+        await saveOccurrenceTypesToFirebase(occurrenceTypes);
+
+        const contractDetailPromises = initialContracts.map(async (contract) => {
+            try {
+                const servicesResponse = await fetch(`${baseUrl}/admin/clientecontrato/servico/list/ajax/?contrato_id=${contract.id}`, { credentials: 'include' });
+                const services = await servicesResponse.json();
+                if (services && services.length > 0 && services[0].id) {
+                    const detailsResponse = await fetch(`${baseUrl}/admin/atendimento/ocorrencia/servico/detalhe/ajax/?servico_id=${services[0].id}&contrato_id=${contract.id}`, { credentials: 'include' });
+                    const details = await detailsResponse.json();
+                    if (details && details.length > 0 && details[0]?.end_instalacao) {
+                        return { ...contract, text: `${contract.text} - Endereço: ${details[0].end_instalacao}` };
+                    }
+                }
+            } catch (e) {
+                console.warn(`ATI Extensão: Não foi possível buscar o endereço para o contrato ${contract.id}.`, e);
+            }
+            return contract;
+        });
+
+        const contracts = await Promise.all(contractDetailPromises);
+        const sgpData = { clientSgpId: client.id, contracts, responsibleUsers, occurrenceTypes };
+        
+        sgpCache.set(cacheKey, sgpData);
+        return sgpData;
+
+    } catch (error) {
+        console.error(`ATI Extensão: Falha ao buscar dados do SGP para o cliente ${client.id}.`, error);
+        throw error;
+    }
+}
+
 async function searchClientInSgp(tabId) {
     if (isSearchRunning) return;
     isSearchRunning = true;
     let success = false;
     try {
         const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
-
         if (!isLoggedIn) {
             const loginUrl = `${baseUrl}/accounts/login/`;
             const existingLoginTabs = await chrome.tabs.query({ url: `${loginUrl}*` });
-
             if (existingLoginTabs.length > 0) {
                 await chrome.tabs.update(existingLoginTabs[0].id, { active: true });
                 await chrome.windows.update(existingLoginTabs[0].windowId, { focused: true });
@@ -233,14 +227,11 @@ async function searchClientInSgp(tabId) {
             }
             return;
         }
-
         const clientData = await chrome.storage.local.get(["cpfCnpj", "fullName", "phoneNumber"]);
         const client = await findClientInSgp(baseUrl, clientData);
-        
         if (client && client.id) {
-            const titlePattern = `*SGP*(${client.id})*`; 
+            const titlePattern = `*SGP*(${client.id})*`;
             const existingClientTabs = await chrome.tabs.query({ title: titlePattern });
-
             if (existingClientTabs.length > 0) {
                 const tab = existingClientTabs[0];
                 await chrome.tabs.update(tab.id, { active: true });
@@ -252,7 +243,6 @@ async function searchClientInSgp(tabId) {
         } else {
             const adminUrl = `${baseUrl}/admin/`;
             const existingAdminTabs = await chrome.tabs.query({ url: `${adminUrl}*` });
-
             if (existingAdminTabs.length > 0) {
                 const tab = existingAdminTabs[0];
                 await chrome.tabs.update(tab.id, { active: true });
@@ -261,9 +251,7 @@ async function searchClientInSgp(tabId) {
                 await chrome.tabs.create({ url: adminUrl });
             }
         }
-        
         success = true;
-
     } catch (error) {
         console.error("ATI Extensão: Erro durante a busca no SGP.", error);
     } finally {
@@ -272,18 +260,6 @@ async function searchClientInSgp(tabId) {
             chrome.tabs.sendMessage(tabId, { action: "sgpSearchComplete", success }).catch(() => {});
         }
     }
-}
-
-// --- Funções de Criação de O.S. ---
-async function getSgpFormParams(clientData) {
-    const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
-    if (!isLoggedIn) throw new Error("Você não está logado no SGP.");
-
-    const client = await findClientInSgp(baseUrl, clientData);
-    if (!client) throw new Error("Cliente não encontrado no SGP.");
-    
-    // Reutiliza a função já criada que faz a busca e a sincronização
-    return await getSgpDataForClient(baseUrl, client);
 }
 
 async function createOccurrenceVisually(data) {
@@ -302,21 +278,17 @@ async function createOccurrenceVisually(data) {
     });
 }
 
-// --- Função Injetada no SGP ---
 function injectAndFillForm() {
     chrome.storage.local.get(['sgpVisualFillPayload', 'atendenteAtual'], (result) => {
         const { sgpVisualFillPayload, atendenteAtual } = result;
-
         if (!sgpVisualFillPayload) return alert('ATI Extensão: Dados da O.S. não encontrados.');
-        if (!atendenteAtual) return alert('ATI Extensão: Nenhum atendente logado no painel ATI. Faça o login para continuar.');
+        if (!atendenteAtual) return alert('ATI Extensão: Nenhum atendente logado no painel ATI.');
 
         const responsibleUsers = sgpVisualFillPayload.responsibleUsers || [];
         const currentUser = atendenteAtual.toLowerCase();
-        
         const responsibleUser = responsibleUsers.find(user => user.username === currentUser);
         const attendantSgpId = responsibleUser ? responsibleUser.id : null;
-        
-        if (!attendantSgpId) return alert(`ATI Extensão: O usuário '${atendenteAtual}' não foi encontrado na lista de responsáveis do SGP. Verifique se os nomes de usuário são idênticos.`);
+        if (!attendantSgpId) return alert(`ATI Extensão: O usuário '${atendenteAtual}' não foi encontrado na lista de responsáveis do SGP.`);
 
         const data = sgpVisualFillPayload;
         const setValue = (selector, value, isCheckbox = false) => {
@@ -347,27 +319,44 @@ function injectAndFillForm() {
                 setValue('#id_data_agendamento', `${day}/${month}/${year} ${hours}:${minutes}`);
                 setValue('#id_os', data.shouldCreateOS, true);
 
-                console.log(`ATI Extensão: Formulário preenchido para ${atendenteAtual} (ID: ${attendantSgpId}).`);
                 chrome.storage.local.remove('sgpVisualFillPayload');
             }, 1000);
         }, 500);
     });
 }
 
-// --- Listeners Globais ---
+// --- LISTENERS DE EVENTOS DA EXTENSÃO ---
+
 chrome.runtime.onInstalled.addListener(() => {
     loadAndCacheAtendentes();
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "getSgpFormParams") {
+        (async () => {
+            try {
+                const clientInfo = request.data;
+                const cacheKey = clientInfo.cpfCnpj || clientInfo.fullName || clientInfo.phoneNumber;
+                if (!cacheKey) throw new Error("Dados do cliente insuficientes para busca.");
+
+                const { isLoggedIn, baseUrl } = await getSgpStatusWithCache();
+                if (!isLoggedIn) throw new Error("Você não está logado no SGP.");
+
+                const client = await findClientInSgp(baseUrl, clientInfo);
+                if (!client) throw new Error("Cliente não encontrado no SGP.");
+
+                const sgpData = await getSgpDataForClient(baseUrl, client, cacheKey);
+                sendResponse({ success: true, data: sgpData });
+            } catch (error) {
+                sendResponse({ success: false, message: error.message });
+            }
+        })();
+        return true;
+    }
+
     switch (request.action) {
         case "getTemplates":
             loadAndCacheTemplates().then(sendResponse);
-            return true;
-        case "getSgpFormParams":
-            getSgpFormParams(request.data)
-                .then(response => sendResponse({success: true, data: response}))
-                .catch(error => sendResponse({success: false, message: error.message}));
             return true;
         case "createOccurrenceVisually":
             createOccurrenceVisually(request.data).catch(err => console.error(err));
@@ -387,8 +376,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case "openInSgp":
             searchClientInSgp(sender.tab.id);
             break;
+        case "clearSgpCache":
+            if (request.cacheKey) {
+                sgpCache.delete(request.cacheKey);
+                console.log(`ATI Extensão: Cache limpo para: ${request.cacheKey}.`);
+            }
+            break;
     }
-    return true;
 });
 
 chrome.action.onClicked.addListener(() => {
@@ -412,7 +406,6 @@ chrome.commands.onCommand.addListener(async (command) => {
     }
 });
 
-// --- Injeção de Scripts ---
 const INJECTION_RULES = {
     CHATMIX: { 
         matches: ["https://www.chatmix.com.br/v2/chat*"], 

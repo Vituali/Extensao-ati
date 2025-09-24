@@ -174,7 +174,11 @@ async function openOSModal() {
         const clientData = extractDataFromHeader();
         clientData.cpfCnpj = findCPF(collectTextFromMessages());
         
+        // FIX: Adicionada verificação explícita de `lastError`
         const response = await chrome.runtime.sendMessage({ action: "getSgpFormParams", data: clientData });
+        if (chrome.runtime.lastError) {
+            throw new Error(chrome.runtime.lastError.message);
+        }
 
         if (response && response.success) {
             showOSModal({
@@ -202,20 +206,25 @@ async function openInSgp() {
     button.innerHTML = `<span>Buscando...</span>`;
     button.disabled = true;
 
-    const clientData = extractDataFromHeader();
-    clientData.cpfCnpj = findCPF(collectTextFromMessages());
-
-    if (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber) {
-        showNotification("Nenhum dado (CPF, Nome ou Telefone) para buscar.", true);
-        provideButtonFeedback(button, false);
-        return;
-    }
-
     try {
+        const clientData = extractDataFromHeader();
+        clientData.cpfCnpj = findCPF(collectTextFromMessages());
+
+        if (!clientData.cpfCnpj && !clientData.fullName && !clientData.phoneNumber) {
+            showNotification("Nenhum dado (CPF, Nome ou Telefone) para buscar.", true);
+            provideButtonFeedback(button, false);
+            return;
+        }
+
         await chrome.storage.local.set(clientData);
+        // FIX: Adicionada verificação explícita de `lastError`
         chrome.runtime.sendMessage({ action: "openInSgp" });
+        if (chrome.runtime.lastError) {
+            throw new Error(chrome.runtime.lastError.message);
+        }
     } catch (error) {
         showNotification("Erro ao iniciar a busca no SGP.", true);
+        console.error("Falha ao enviar mensagem para abrir SGP:", error);
         provideButtonFeedback(button, false);
     }
 }
@@ -396,4 +405,3 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     setupObserver();
 })();
-

@@ -1,21 +1,22 @@
-// vite.sgp.config.js
-
 import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
-  publicDir: false, // Adicione esta linha
+  publicDir: false,
   build: {
     outDir: resolve(__dirname, 'dist'),
-    emptyOutDir: false, // Não apaga a pasta 'dist' [cite: 414]
+    emptyOutDir: false,
+    // Adiciona o monitoramento de arquivos para este build também.
+    watch: {
+      include: ['src/scripts/sgp.js', 'src/scripts/utils.js', 'src/scripts/logic.js'],
+    },
     rollupOptions: {
-      // Apenas UMA entrada
       input: {
         sgp: resolve(__dirname, 'src/scripts/sgp.js'),
       },
       output: {
         format: 'iife',
-        entryFileNames: 'scripts/[name].js', // Saída: dist/scripts/sgp.js
+        entryFileNames: 'scripts/[name].js',
       },
     },
   },

@@ -62,20 +62,14 @@ export function processDynamicPlaceholders(text) {
  * Carrega as configurações de tema salvas e as aplica como variáveis CSS na página.
  */
 export function applySiteTheme() {
-    // MODIFICADO: Adicionado 'chatPrimaryAlpha' aos padrões
-    const defaultTheme = {
-        isDarkMode: true,
-        neonBorders: true,
-        borderColor: '#007DFF',
-        textColor: '#E5E5E5',
-        chatPrimaryAlpha: 0.377 // Valor padrão para a transparência
-    };
-
     chrome.storage.local.get('atiSiteTheme', ({ atiSiteTheme }) => {
-        const theme = atiSiteTheme || defaultTheme;
+        // **A CORREÇÃO:** Detecta o modo atual diretamente da página
+        const isCurrentlyDark = document.documentElement.classList.contains('dark');
+
+        const theme = atiSiteTheme || {};
         
-        // MODIFICADO: Pega o valor da transparência salvo, ou usa o padrão
-        const chatPrimaryAlpha = theme.chatPrimaryAlpha ?? defaultTheme.chatPrimaryAlpha;
+        const chatPrimaryAlpha = theme.chatPrimaryAlpha ?? 0.377;
+        const borderColor = theme.borderColor || '#007DFF';
 
         const styleId = 'ati-site-theme-styles';
         let styleTag = document.getElementById(styleId);
@@ -84,34 +78,33 @@ export function applySiteTheme() {
             styleTag.id = styleId;
             (document.head || document.documentElement).appendChild(styleTag);
         }
+
         const getLuminance = (hex) => {
             if (!hex || hex.length < 4) return 0;
             const rgb = parseInt(hex.slice(1), 16);
             const r = (rgb >> 16) & 0xff, g = (rgb >> 8) & 0xff, b = (rgb >> 0) & 0xff;
             return 0.2126 * r + 0.7152 * g + 0.0722 * b;
         };
-        const contrastColor = getLuminance(theme.borderColor) > 128 ? '#111' : '#FFF';
+        const contrastColor = getLuminance(borderColor) > 128 ? '#111' : '#FFF';
         
-        // MODIFICADO: O conteúdo da tag de estilo agora inclui a regra de transparência dinâmica
         styleTag.textContent = `
             :root {
                 --theme-font-primary: 'Orbitron', sans-serif;
                 --theme-font-secondary: Arial, sans-serif;
-                --theme-card-bg: ${theme.isDarkMode ? '#2d2d2d' : '#ffffff'};
-                --theme-text-primary: ${theme.isDarkMode ? '#e0e0e0' : '#333333'};
-                --theme-border-color: ${theme.borderColor};
-                --theme-heading-color: ${theme.textColor};
-                --theme-button-bg: ${theme.borderColor};
+                --theme-card-bg: ${isCurrentlyDark ? '#2d2d2d' : '#ffffff'};
+                --theme-text-primary: ${isCurrentlyDark ? '#e0e0e0' : '#333333'};
+                --theme-border-color: ${borderColor};
+                --theme-heading-color: ${isCurrentlyDark ? '#e0e0e0' : '#333333'};
+                --theme-button-bg: ${borderColor};
                 --theme-button-text: ${contrastColor};
                 --theme-success-color: #22C55E;
                 --theme-error-color: #EF4444;
                 --theme-info-color: #3B82F6;
-                --theme-shadow-color: ${theme.isDarkMode ? theme.borderColor + '66' : '#00000033'};
+                --theme-shadow-color: ${isCurrentlyDark ? borderColor + '66' : '#00000033'};
                 --theme-button-hover-bg: ${contrastColor === '#FFF' ? '#3399ff' : '#0056b3'};
             }
 
-            /* NOVO: Regra dinâmica que usa o valor do slider do painel */
-            ${theme.isDarkMode ? `
+            ${isCurrentlyDark ? `
             html.dark body {
                 --chatPrimary: rgba(0, 110, 255, ${chatPrimaryAlpha}) !important;
             }
@@ -159,4 +152,3 @@ function isValidCNPJ(cnpj) {
     result = sum % 11 < 2 ? 0 : 11 - sum % 11;
     return result == digits.charAt(1);
 }
-
